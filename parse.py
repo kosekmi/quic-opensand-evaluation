@@ -107,9 +107,15 @@ def tcp_cwnd_evo(path):
     evo = defaultdict(StatsList)
 
     for i in range(11):
-        iperf = load_json_file(os.path.join(path, f"{i}_tcp_cwnd_evo.json"))
+        result_file = os.path.join(path, f"{i}_tcp_cwnd_evo.json")
+        if not os.path.isfile(result_file):
+            print(f"{result_file} not found, skipping")
+            continue
+
+        iperf = load_json_file(result_file)
         if iperf is None:
             continue
+
         for idx, interval in enumerate(iperf['intervals']):
             snd_cwnd = interval['streams'][0]['snd_cwnd']
             if snd_cwnd > 0:
@@ -123,9 +129,15 @@ def tcp_goodput(path):
     goodput = defaultdict(StatsList)
 
     for i in range(11):
-        iperf = load_json_file(os.path.join(path, f"{i}_tcp_goodput.json"))
+        result_file = os.path.join(path, f"{i}_tcp_goodput.json")
+        if not os.path.isfile(result_file):
+            print(f"{result_file} not found, skipping")
+            continue
+
+        iperf = load_json_file(result_file)
         if iperf is None:
             continue
+
         for idx, interval in enumerate(iperf['intervals']):
             bps = interval['streams'][0]['bits_per_second']
             if bps > 0:
@@ -215,13 +227,16 @@ def qperf_goodput(log_path):
 
 
 def measure_folders(root_folder):
-    for d in ["LEO", "MEO", "GEO"]:
-        for r in ["1mbit", "10mbit", "100mbit"]:
-            for l in ["0.01%", "0.1%", "1%", "5%"]:
-                for q in ["1", "2", "5", "10"]:
-                    for p in ["none", "bbr", "hybla", "fec"]:
-                        ptext = f"_{p}" if p != "none" else ""
-                        yield (d, r, l, q, p, os.path.join(root_folder, f"{d}_r{r}_l{l}_q{q}{ptext}"))
+    for delay in ["LEO", "MEO", "GEO"]:
+        for rate in ["1mbit", "10mbit", "100mbit"]:
+            for loss in ["0.01%", "0.1%", "1%", "5%"]:
+                for queue in ["1", "2", "5", "10"]:
+                    for pep in ["none", "bbr", "hybla", "fec"]:
+                        pep_text = f"_{p}" if p != "none" else ""
+                        measure_folder = os.path.join(root_folder, f"{d}_r{r}_l{l}_q{q}{pep_text}")
+
+                        if os.path.isdir(measure_folder):
+                            yield (delay, rate, loss, queue, pep, measure_folder)
 
 def parse(in_dir = "~/measure", out_dir = "."):
     tcp_conn_times = list()
@@ -246,21 +261,37 @@ def parse(in_dir = "~/measure", out_dir = "."):
         print(f"\n{d} {r} {l} {q} loss pep={p}")
 
         # tcp & tls -----------------------------------------------------------------------------------
-        s = curl_established_time(os.path.join(folder, "tcp_conn_est.txt"))
-        print(f"tcp_conn_time: {s.cnt()} items")
-        tcp_conn_times.append([d, r, l, p, s.mean(), s.min(), s.max(), s.p95()])
+        result_file = os.path.join(folder, "tcp_conn_est.txt")
+        if os.path.isfile(result_file):
+            s = curl_established_time(result_file)
+            print(f"tcp_conn_time: {s.cnt()} items")
+            tcp_conn_times.append([d, r, l, p, s.mean(), s.min(), s.max(), s.p95()])
+        else:
+            print(f"{result_file} not found, skipping")
 
-        s = curl_established_time(os.path.join(folder, "tls_conn_est.txt"))
-        print(f"tls_conn_time: {s.cnt()} items")
-        tls_conn_times.append([d, r, l, p, s.mean(), s.min(), s.max(), s.p95()])
+        result_file = os.path.join(folder, "tls_conn_est.txt")
+        if os.path.isfile(result_file):
+            s = curl_established_time(result_file)
+            print(f"tls_conn_time: {s.cnt()} items")
+            tls_conn_times.append([d, r, l, p, s.mean(), s.min(), s.max(), s.p95()])
+        else:
+            print(f"{result_file} not found, skipping")
 
-        s = curl_ttfb(os.path.join(folder, "tcp_conn_est.txt"))
-        print(f"tcp_ttfb: {s.cnt()} items")
-        tcp_ttfb.append([d, r, l, p, s.mean(), s.min(), s.max(), s.p95()])
+        result_file = os.path.join(folder, "tcp_conn_est.txt")
+        if os.path.isfile(result_file):
+            s = curl_ttfb(result_file)
+            print(f"tcp_ttfb: {s.cnt()} items")
+            tcp_ttfb.append([d, r, l, p, s.mean(), s.min(), s.max(), s.p95()])
+        else:
+            print(f"{result_file} not found, skipping")
 
-        s = curl_ttfb(os.path.join(folder, "tls_conn_est.txt"))
-        print(f"tls_ttfb: {s.cnt()} items")
-        tls_ttfb.append([d, r, l, p, s.mean(), s.min(), s.max(), s.p95()])
+        result_file = os.path.join(folder, "tls_conn_est.txt")
+        if os.path.isfile(result_file):
+            s = curl_ttfb(result_file)
+            print(f"tls_ttfb: {s.cnt()} items")
+            tls_ttfb.append([d, r, l, p, s.mean(), s.min(), s.max(), s.p95()])
+        else:
+            print(f"{result_file} not found, skipping")
 
         for t, cwnd in sorted(tcp_cwnd_evo(folder).items(), key=lambda x: x[0]):
             tcp_cwnd_evos.append([d, r, l, p, t,
