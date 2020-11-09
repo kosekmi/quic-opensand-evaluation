@@ -107,7 +107,7 @@ def tcp_cwnd_evo(path):
     evo = defaultdict(StatsList)
 
     for i in range(11):
-        iperf = load_json_file(f"{path}/{i}_tcp_cwnd_evo.json")
+        iperf = load_json_file(os.path.join(path, f"{i}_tcp_cwnd_evo.json"))
         if iperf is None:
             continue
         for idx, interval in enumerate(iperf['intervals']):
@@ -123,7 +123,7 @@ def tcp_goodput(path):
     goodput = defaultdict(StatsList)
 
     for i in range(11):
-        iperf = load_json_file(f"{path}/{i}_tcp_goodput.json")
+        iperf = load_json_file(os.path.join(path, f"{i}_tcp_goodput.json"))
         if iperf is None:
             continue
         for idx, interval in enumerate(iperf['intervals']):
@@ -137,7 +137,7 @@ def tcp_goodput(path):
 
 def qperf_conn_time(logs_path):
     stats = StatsList()
-    path = f"{logs_path}/quic_ttfb.txt"
+    path = os.path.join(logs_path, f"quic_ttfb.txt")
     if not os.path.isfile(path):
         print(f"quicly conn time error: {path} does not exist")
         return
@@ -157,7 +157,7 @@ def qperf_conn_time(logs_path):
 
 def qperf_time_to_first_byte(logs_path):
     stats = StatsList()
-    path = f"{logs_path}/quic_ttfb.txt"
+    path = os.path.join(logs_path, f"quic_ttfb.txt")
     if not os.path.isfile(path):
         print(f"quicly time to first byte error: {path} does not exist")
         return
@@ -177,7 +177,7 @@ def qperf_time_to_first_byte(logs_path):
 def qperf_cwnd_evo(log_path):
     evo_stats = defaultdict(StatsList)
     for i in range(13):
-        path = f"{log_path}/{i}_quic_cwnd_evo.txt"
+        path = os.path.join(log_path, f"{i}_quic_cwnd_evo.txt")
         if not os.path.isfile(path):
             continue
 
@@ -197,7 +197,7 @@ def qperf_cwnd_evo(log_path):
 def qperf_goodput(log_path):
     goodput_stats = defaultdict(StatsList)
     for i in range(13):
-        path = f"{log_path}/{i}_quic_goodput.txt"
+        path = os.path.join(log_path, f"{i}_quic_goodput.txt")
         if not os.path.isfile(path):
             continue
 
@@ -221,7 +221,7 @@ def measure_folders(root_folder):
                 for q in ["1", "2", "5", "10"]:
                     for p in ["none", "bbr", "hybla", "fec"]:
                         ptext = f"_{p}" if p != "none" else ""
-                        yield (d, r, l, q, p, root_folder + f"/{d}_r{r}_l{l}_q{q}{ptext}")
+                        yield (d, r, l, q, p, os.path.join(root_folder, f"{d}_r{r}_l{l}_q{q}{ptext}"))
 
 def parse(in_dir = "~/measure", out_dir = "."):
     tcp_conn_times = list()
@@ -246,19 +246,19 @@ def parse(in_dir = "~/measure", out_dir = "."):
         print(f"\n{d} {r} {l} {q} loss pep={p}")
 
         # tcp & tls -----------------------------------------------------------------------------------
-        s = curl_established_time(folder + "/tcp_conn_est.txt")
+        s = curl_established_time(os.path.join(folder, "tcp_conn_est.txt"))
         print(f"tcp_conn_time: {s.cnt()} items")
         tcp_conn_times.append([d, r, l, p, s.mean(), s.min(), s.max(), s.p95()])
 
-        s = curl_established_time(folder + "/tls_conn_est.txt")
+        s = curl_established_time(os.path.join(folder, "tls_conn_est.txt"))
         print(f"tls_conn_time: {s.cnt()} items")
         tls_conn_times.append([d, r, l, p, s.mean(), s.min(), s.max(), s.p95()])
 
-        s = curl_ttfb(folder + "/tcp_conn_est.txt")
+        s = curl_ttfb(os.path.join(folder, "tcp_conn_est.txt"))
         print(f"tcp_ttfb: {s.cnt()} items")
         tcp_ttfb.append([d, r, l, p, s.mean(), s.min(), s.max(), s.p95()])
 
-        s = curl_ttfb(folder + "/tls_conn_est.txt")
+        s = curl_ttfb(os.path.join(folder, "tls_conn_est.txt"))
         print(f"tls_ttfb: {s.cnt()} items")
         tls_ttfb.append([d, r, l, p, s.mean(), s.min(), s.max(), s.p95()])
 
@@ -382,7 +382,7 @@ def main(argv):
     try:
         opts, args = getopt.getopt(argv, "i:o:", ["input=", "output="])
     except getopt.GetoptError:
-        print "parse.py -i <inputdir> -o <outputdir>"
+        print("parse.py -i <inputdir> -o <outputdir>")
         sys.exit(2)
 
     for opt, arg in opts:
