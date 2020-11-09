@@ -13,7 +13,7 @@ client_ip = "10.10.2.1"
 
 
 # source: http://code.activestate.com/recipes/511478/
-def percentile(N, percent, key=lambda x:x):
+def percentile(N, percent, key=lambda x: x):
     """
     Find the percentile of a list of values.
 
@@ -25,19 +25,22 @@ def percentile(N, percent, key=lambda x:x):
     """
     if not N:
         return None
-    k = (len(N)-1) * percent
+    k = (len(N) - 1) * percent
     f = math.floor(k)
     c = math.ceil(k)
     if f == c:
         return key(N[int(k)])
-    d0 = key(N[int(f)]) * (c-k)
-    d1 = key(N[int(c)]) * (k-f)
-    return d0+d1
+    d0 = key(N[int(f)]) * (c - k)
+    d1 = key(N[int(c)]) * (k - f)
+    return d0 + d1
 
 
 class StatsList:
     def __init__(self):
         self.items = list()
+
+    def __len__(self):
+        return len(self.items)
 
     def add_packets(self, first, second):
         self.items.append(float(second.sniff_timestamp) - float(first.sniff_timestamp))
@@ -54,15 +57,18 @@ class StatsList:
         return sum(self.items) / len(self.items)
 
     def max(self):
+        if len(self.items) == 0:
+            return 0
         return max(self.items)
 
     def min(self):
+        if len(self.items) == 0:
+            return 0
         return min(self.items)
 
     def p95(self):
         if len(self.items) == 0:
             return 0
-
         return percentile(sorted(self.items), 0.95)
 
 
@@ -121,7 +127,8 @@ def tcp_cwnd_evo(path):
             if snd_cwnd > 0:
                 evo[idx].add_val(snd_cwnd)
 
-    print(f"tcp_cwnd_evo: {max([x.cnt() for x in evo.values()])} items")
+    if len(evo) > 0:
+        print(f"tcp_cwnd_evo: {max([x.cnt() for x in evo.values()])} items")
     return evo
 
 
@@ -143,7 +150,8 @@ def tcp_goodput(path):
             if bps > 0:
                 goodput[idx].add_val(bps)
 
-    print(f"tcp_goodput: {max([x.cnt() for x in goodput.values()])} items")
+    if len(goodput) > 0:
+        print(f"tcp_goodput: {max([x.cnt() for x in goodput.values()])} items")
     return goodput
 
 
@@ -229,16 +237,17 @@ def qperf_goodput(log_path):
 def measure_folders(root_folder):
     for delay in ["LEO", "MEO", "GEO"]:
         for rate in ["1mbit", "10mbit", "100mbit"]:
-            for loss in ["0.01%", "0.1%", "1%", "5%"]:
+            for loss in ["0.01", "0.1", "1", "5"]:
                 for queue in ["1", "2", "5", "10"]:
                     for pep in ["none", "bbr", "hybla", "fec"]:
-                        pep_text = f"_{p}" if p != "none" else ""
-                        measure_folder = os.path.join(root_folder, f"{d}_r{r}_l{l}_q{q}{pep_text}")
+                        pep_text = f"_{pep}" if pep != "none" else ""
+                        measure_folder = os.path.join(root_folder, f"{delay}_r{rate}_l{loss}_q{queue}{pep_text}")
 
                         if os.path.isdir(measure_folder):
-                            yield (delay, rate, loss, queue, pep, measure_folder)
+                            yield delay, rate, loss + '%', queue, pep, measure_folder
 
-def parse(in_dir = "~/measure", out_dir = "."):
+
+def parse(in_dir="~/measure", out_dir="."):
     tcp_conn_times = list()
     tcp_ttfb = list()
     tcp_cwnd_evos = list()
@@ -257,23 +266,24 @@ def parse(in_dir = "~/measure", out_dir = "."):
     quic_fec_cwnd_evos = list()
     quic_fec_goodputs = list()
 
-    for d, r, l, q, p, folder in measure_folders(in_dir):
-        print(f"\n{d} {r} {l} {q} loss pep={p}")
+    for delay, rate, loss, queue, pep, folder in measure_folders(in_dir):
+        print(f"\ndelay={delay} rate={rate} loss={loss} queue={queue} pep={pep}")
 
         # tcp & tls -----------------------------------------------------------------------------------
         result_file = os.path.join(folder, "tcp_conn_est.txt")
         if os.path.isfile(result_file):
             s = curl_established_time(result_file)
             print(f"tcp_conn_time: {s.cnt()} items")
-            tcp_conn_times.append([d, r, l, p, s.mean(), s.min(), s.max(), s.p95()])
+            tcp_conn_times.append([delay, rate, loss, pep, s.mean(), s.min(), s.max(), s.p95()])
         else:
             print(f"{result_file} not found, skipping")
 
+        # again???
         result_file = os.path.join(folder, "tls_conn_est.txt")
         if os.path.isfile(result_file):
             s = curl_established_time(result_file)
             print(f"tls_conn_time: {s.cnt()} items")
-            tls_conn_times.append([d, r, l, p, s.mean(), s.min(), s.max(), s.p95()])
+            tls_conn_times.append([delay, rate, loss, pep, s.mean(), s.min(), s.max(), s.p95()])
         else:
             print(f"{result_file} not found, skipping")
 
@@ -281,58 +291,66 @@ def parse(in_dir = "~/measure", out_dir = "."):
         if os.path.isfile(result_file):
             s = curl_ttfb(result_file)
             print(f"tcp_ttfb: {s.cnt()} items")
-            tcp_ttfb.append([d, r, l, p, s.mean(), s.min(), s.max(), s.p95()])
+            tcp_ttfb.append([delay, rate, loss, pep, s.mean(), s.min(), s.max(), s.p95()])
         else:
             print(f"{result_file} not found, skipping")
 
+        # again???
         result_file = os.path.join(folder, "tls_conn_est.txt")
         if os.path.isfile(result_file):
             s = curl_ttfb(result_file)
             print(f"tls_ttfb: {s.cnt()} items")
-            tls_ttfb.append([d, r, l, p, s.mean(), s.min(), s.max(), s.p95()])
+            tls_ttfb.append([delay, rate, loss, pep, s.mean(), s.min(), s.max(), s.p95()])
         else:
             print(f"{result_file} not found, skipping")
 
         for t, cwnd in sorted(tcp_cwnd_evo(folder).items(), key=lambda x: x[0]):
-            tcp_cwnd_evos.append([d, r, l, p, t,
+            tcp_cwnd_evos.append([delay, rate, loss, pep, t,
                                   int(cwnd.mean()), int(cwnd.min()), int(cwnd.max()), int(cwnd.p95())])
 
         for t, goodput in sorted(tcp_goodput(folder).items(), key=lambda x: x[0]):
-            tcp_goodputs.append(([d, r, l, p, t,
+            tcp_goodputs.append(([delay, rate, loss, pep, t,
                                   int(goodput.mean()), int(goodput.min()), int(goodput.max()), int(goodput.p95())]))
 
-        if p == "none":
+        if pep == "none":
             # quic ----------------------------------------------------------------------------------------
             s = qperf_conn_time(folder)
-            quic_conn_times.append([d, r, l, s.mean(), s.min(), s.max(), s.p95()])
+            quic_conn_times.append([delay, rate, loss, s.mean(), s.min(), s.max(), s.p95()])
 
             s = qperf_time_to_first_byte(folder)
-            quic_ttfb.append([d, r, l, s.mean(), s.min(), s.max(), s.p95()])
+            quic_ttfb.append([delay, rate, loss, s.mean(), s.min(), s.max(), s.p95()])
 
             for t, cwnd in sorted(qperf_cwnd_evo(folder).items(), key=lambda x: x[0]):
-                quic_cwnd_evos.append([d, r, l, t,
+                quic_cwnd_evos.append([delay, rate, loss, t,
                                        int(cwnd.mean()), int(cwnd.min()), int(cwnd.max()), int(cwnd.p95())])
 
             for t, goodput in sorted(qperf_goodput(folder).items(), key=lambda x: x[0]):
-                quic_goodputs.append([d, r, l, t,
+                quic_goodputs.append([delay, rate, loss, t,
                                       int(goodput.mean()), int(goodput.min()), int(goodput.max()), int(goodput.p95())])
 
-        elif p == "fec":
+        elif pep == "fec":
             # quic over fec tunnel ------------------------------------------------------------------------
             s = qperf_conn_time(folder)
-            quic_fec_conn_times.append([d, r, l, s.mean(), s.min(), s.max(), s.p95()])
+            quic_fec_conn_times.append([delay, rate, loss, s.mean(), s.min(), s.max(), s.p95()])
 
             s = qperf_time_to_first_byte(folder)
-            quic_fec_ttfb.append([d, r, l, s.mean(), s.min(), s.max(), s.p95()])
+            quic_fec_ttfb.append([delay, rate, loss, s.mean(), s.min(), s.max(), s.p95()])
 
             for t, cwnd in sorted(qperf_cwnd_evo(folder).items(), key=lambda x: x[0]):
-                quic_fec_cwnd_evos.append([d, r, l, t,
-                                       int(cwnd.mean()), int(cwnd.min()), int(cwnd.max()), int(cwnd.p95())])
+                quic_fec_cwnd_evos.append([delay, rate, loss, t,
+                                           int(cwnd.mean()), int(cwnd.min()), int(cwnd.max()), int(cwnd.p95())])
 
             for t, goodput in sorted(qperf_goodput(folder).items(), key=lambda x: x[0]):
-                quic_fec_goodputs.append([d, r, l, t,
-                                      int(goodput.mean()), int(goodput.min()), int(goodput.max()), int(goodput.p95())])
+                quic_fec_goodputs.append([delay, rate, loss, t,
+                                          int(goodput.mean()), int(goodput.min()), int(goodput.max()),
+                                          int(goodput.p95())])
 
+    # Write results
+    if not os.path.exists(out_dir):
+        os.mkdir(out_dir)
+    if not os.path.isdir(out_dir):
+        print(f"{out_dir} is not a directory, cannot write parsed results")
+        return
 
     with open(os.path.join(out_dir, "tcp_connection_establishment.csv"), "w", newline='') as csvfile:
         writer = csv.writer(csvfile)
@@ -406,6 +424,7 @@ def parse(in_dir = "~/measure", out_dir = "."):
 
     print("done")
 
+
 def main(argv):
     in_dir = "~/measure"
     out_dir = "."
@@ -423,6 +442,7 @@ def main(argv):
             out_dir = arg
 
     parse(in_dir, out_dir)
+
 
 if __name__ == '__main__':
     main(sys.argv[1:])
