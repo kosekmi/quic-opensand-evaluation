@@ -207,7 +207,7 @@ def qperf_cwnd_evo(log_path):
                 if not line.startswith("connection 0 second"):
                     continue
                 second = int(line.split(" ")[3])
-                cwnd = int(line.split(" ")[-1])
+                cwnd = int(line.split(" ")[6])
                 evo_stats[second].add_val(cwnd)
 
     print(f"quic_cwnd_evo: {max(x.cnt() for x in evo_stats.values())} items")
@@ -274,7 +274,7 @@ def parse(in_dir="~/measure", out_dir="."):
         if os.path.isfile(result_file):
             s = curl_established_time(result_file)
             print(f"tcp_conn_time: {s.cnt()} items")
-            tcp_conn_times.append([delay, rate, loss, pep, s.mean(), s.min(), s.max(), s.p95()])
+            tcp_conn_times.append([delay, rate, loss, queue, pep, s.mean(), s.min(), s.max(), s.p95()])
         else:
             print(f"{result_file} not found, skipping")
 
@@ -283,7 +283,7 @@ def parse(in_dir="~/measure", out_dir="."):
         if os.path.isfile(result_file):
             s = curl_established_time(result_file)
             print(f"tls_conn_time: {s.cnt()} items")
-            tls_conn_times.append([delay, rate, loss, pep, s.mean(), s.min(), s.max(), s.p95()])
+            tls_conn_times.append([delay, rate, loss, queue, pep, s.mean(), s.min(), s.max(), s.p95()])
         else:
             print(f"{result_file} not found, skipping")
 
@@ -291,7 +291,7 @@ def parse(in_dir="~/measure", out_dir="."):
         if os.path.isfile(result_file):
             s = curl_ttfb(result_file)
             print(f"tcp_ttfb: {s.cnt()} items")
-            tcp_ttfb.append([delay, rate, loss, pep, s.mean(), s.min(), s.max(), s.p95()])
+            tcp_ttfb.append([delay, rate, loss, queue, pep, s.mean(), s.min(), s.max(), s.p95()])
         else:
             print(f"{result_file} not found, skipping")
 
@@ -300,48 +300,48 @@ def parse(in_dir="~/measure", out_dir="."):
         if os.path.isfile(result_file):
             s = curl_ttfb(result_file)
             print(f"tls_ttfb: {s.cnt()} items")
-            tls_ttfb.append([delay, rate, loss, pep, s.mean(), s.min(), s.max(), s.p95()])
+            tls_ttfb.append([delay, rate, loss, queue, pep, s.mean(), s.min(), s.max(), s.p95()])
         else:
             print(f"{result_file} not found, skipping")
 
         for t, cwnd in sorted(tcp_cwnd_evo(folder).items(), key=lambda x: x[0]):
-            tcp_cwnd_evos.append([delay, rate, loss, pep, t,
+            tcp_cwnd_evos.append([delay, rate, loss, queue, pep, t,
                                   int(cwnd.mean()), int(cwnd.min()), int(cwnd.max()), int(cwnd.p95())])
 
         for t, goodput in sorted(tcp_goodput(folder).items(), key=lambda x: x[0]):
-            tcp_goodputs.append(([delay, rate, loss, pep, t,
+            tcp_goodputs.append(([delay, rate, loss, queue, pep, t,
                                   int(goodput.mean()), int(goodput.min()), int(goodput.max()), int(goodput.p95())]))
 
         if pep == "none":
             # quic ----------------------------------------------------------------------------------------
             s = qperf_conn_time(folder)
-            quic_conn_times.append([delay, rate, loss, s.mean(), s.min(), s.max(), s.p95()])
+            quic_conn_times.append([delay, rate, loss, queue, s.mean(), s.min(), s.max(), s.p95()])
 
             s = qperf_time_to_first_byte(folder)
-            quic_ttfb.append([delay, rate, loss, s.mean(), s.min(), s.max(), s.p95()])
+            quic_ttfb.append([delay, rate, loss, queue, s.mean(), s.min(), s.max(), s.p95()])
 
             for t, cwnd in sorted(qperf_cwnd_evo(folder).items(), key=lambda x: x[0]):
-                quic_cwnd_evos.append([delay, rate, loss, t,
+                quic_cwnd_evos.append([delay, rate, loss, queue, t,
                                        int(cwnd.mean()), int(cwnd.min()), int(cwnd.max()), int(cwnd.p95())])
 
             for t, goodput in sorted(qperf_goodput(folder).items(), key=lambda x: x[0]):
-                quic_goodputs.append([delay, rate, loss, t,
+                quic_goodputs.append([delay, rate, loss, queue, t,
                                       int(goodput.mean()), int(goodput.min()), int(goodput.max()), int(goodput.p95())])
 
         elif pep == "fec":
             # quic over fec tunnel ------------------------------------------------------------------------
             s = qperf_conn_time(folder)
-            quic_fec_conn_times.append([delay, rate, loss, s.mean(), s.min(), s.max(), s.p95()])
+            quic_fec_conn_times.append([delay, rate, loss, queue, s.mean(), s.min(), s.max(), s.p95()])
 
             s = qperf_time_to_first_byte(folder)
-            quic_fec_ttfb.append([delay, rate, loss, s.mean(), s.min(), s.max(), s.p95()])
+            quic_fec_ttfb.append([delay, rate, loss, queue, s.mean(), s.min(), s.max(), s.p95()])
 
             for t, cwnd in sorted(qperf_cwnd_evo(folder).items(), key=lambda x: x[0]):
-                quic_fec_cwnd_evos.append([delay, rate, loss, t,
+                quic_fec_cwnd_evos.append([delay, rate, loss, queue, t,
                                            int(cwnd.mean()), int(cwnd.min()), int(cwnd.max()), int(cwnd.p95())])
 
             for t, goodput in sorted(qperf_goodput(folder).items(), key=lambda x: x[0]):
-                quic_fec_goodputs.append([delay, rate, loss, t,
+                quic_fec_goodputs.append([delay, rate, loss, queue, t,
                                           int(goodput.mean()), int(goodput.min()), int(goodput.max()),
                                           int(goodput.p95())])
 
@@ -354,72 +354,72 @@ def parse(in_dir="~/measure", out_dir="."):
 
     with open(os.path.join(out_dir, "tcp_connection_establishment.csv"), "w", newline='') as csvfile:
         writer = csv.writer(csvfile)
-        writer.writerow(["delay", "rate", "loss", "pep", "mean", "min", "max", "p95"])
+        writer.writerow(["delay", "rate", "loss", "queue", "pep", "mean", "min", "max", "p95"])
         writer.writerows(tcp_conn_times)
 
     with open(os.path.join(out_dir, "tls_connection_establishment.csv"), "w", newline='') as csvfile:
         writer = csv.writer(csvfile)
-        writer.writerow(["delay", "rate", "loss", "pep", "mean", "min", "max", "p95"])
+        writer.writerow(["delay", "rate", "loss", "queue", "pep", "mean", "min", "max", "p95"])
         writer.writerows(tls_conn_times)
 
     with open(os.path.join(out_dir, "tcp_time_to_first_byte.csv"), "w", newline='') as csvfile:
         writer = csv.writer(csvfile)
-        writer.writerow(["delay", "rate", "loss", "pep", "mean", "min", "max", "p95"])
+        writer.writerow(["delay", "rate", "loss", "queue", "pep", "mean", "min", "max", "p95"])
         writer.writerows(tcp_ttfb)
 
     with open(os.path.join(out_dir, "tls_time_to_first_byte.csv"), "w", newline='') as csvfile:
         writer = csv.writer(csvfile)
-        writer.writerow(["delay", "rate", "loss", "pep", "mean", "min", "max", "p95"])
+        writer.writerow(["delay", "rate", "loss", "queue", "pep", "mean", "min", "max", "p95"])
         writer.writerows(tls_ttfb)
 
     with open(os.path.join(out_dir, "tcp_cwnd_evolution.csv"), "w", newline='') as csvfile:
         writer = csv.writer(csvfile)
-        writer.writerow(["delay", "rate", "loss", "pep", "t", "mean", "min", "max", "p95"])
+        writer.writerow(["delay", "rate", "loss", "queue", "pep", "t", "mean", "min", "max", "p95"])
         writer.writerows(tcp_cwnd_evos)
 
     with open(os.path.join(out_dir, "tcp_goodput.csv"), "w", newline='') as csvfile:
         writer = csv.writer(csvfile)
-        writer.writerow(["delay", "rate", "loss", "pep", "t", "mean", "min", "max", "p95"])
+        writer.writerow(["delay", "rate", "loss", "queue", "pep", "t", "mean", "min", "max", "p95"])
         writer.writerows(tcp_goodputs)
 
     with open(os.path.join(out_dir, "quic_connection_establishment.csv"), "w", newline='') as csvfile:
         writer = csv.writer(csvfile)
-        writer.writerow(["delay", "rate", "loss", "mean", "min", "max", "p95"])
+        writer.writerow(["delay", "rate", "loss", "queue", "mean", "min", "max", "p95"])
         writer.writerows(quic_conn_times)
 
     with open(os.path.join(out_dir, "quic_time_to_first_byte.csv"), "w", newline='') as csvfile:
         writer = csv.writer(csvfile)
-        writer.writerow(["delay", "rate", "loss", "mean", "min", "max", "p95"])
+        writer.writerow(["delay", "rate", "loss", "queue", "mean", "min", "max", "p95"])
         writer.writerows(quic_ttfb)
 
     with open(os.path.join(out_dir, "quic_cwnd_evolution.csv"), "w", newline='') as csvfile:
         writer = csv.writer(csvfile)
-        writer.writerow(["delay", "rate", "loss", "t", "mean", "min", "max", "p95"])
+        writer.writerow(["delay", "rate", "loss", "queue", "t", "mean", "min", "max", "p95"])
         writer.writerows(quic_cwnd_evos)
 
     with open(os.path.join(out_dir, "quic_goodput.csv"), "w", newline='') as csvfile:
         writer = csv.writer(csvfile)
-        writer.writerow(["delay", "rate", "loss", "t", "mean", "min", "max", "p95"])
+        writer.writerow(["delay", "rate", "loss", "queue", "t", "mean", "min", "max", "p95"])
         writer.writerows(quic_goodputs)
 
     with open(os.path.join(out_dir, "quic_fec_connection_establishment.csv"), "w", newline='') as csvfile:
         writer = csv.writer(csvfile)
-        writer.writerow(["delay", "rate", "loss", "mean", "min", "max", "p95"])
+        writer.writerow(["delay", "rate", "loss", "queue", "mean", "min", "max", "p95"])
         writer.writerows(quic_fec_conn_times)
 
     with open(os.path.join(out_dir, "quic_fec_time_to_first_byte.csv"), "w", newline='') as csvfile:
         writer = csv.writer(csvfile)
-        writer.writerow(["delay", "rate", "loss", "mean", "min", "max", "p95"])
+        writer.writerow(["delay", "rate", "loss", "queue", "mean", "min", "max", "p95"])
         writer.writerows(quic_fec_ttfb)
 
     with open(os.path.join(out_dir, "quic_fec_cwnd_evolution.csv"), "w", newline='') as csvfile:
         writer = csv.writer(csvfile)
-        writer.writerow(["delay", "rate", "loss", "t", "mean", "min", "max", "p95"])
+        writer.writerow(["delay", "rate", "loss", "queue", "t", "mean", "min", "max", "p95"])
         writer.writerows(quic_fec_cwnd_evos)
 
     with open(os.path.join(out_dir, "quic_fec_goodput.csv"), "w", newline='') as csvfile:
         writer = csv.writer(csvfile)
-        writer.writerow(["delay", "rate", "loss", "t", "mean", "min", "max", "p95"])
+        writer.writerow(["delay", "rate", "loss", "queue", "t", "mean", "min", "max", "p95"])
         writer.writerows(quic_fec_goodputs)
 
     print("done")
