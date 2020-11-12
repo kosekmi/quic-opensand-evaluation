@@ -1,426 +1,158 @@
-#!/usr/bin/python3
-
-import csv
-import json
-from collections import defaultdict
-import math
+#!/usr/bin/env python3
 import os.path
+import pandas as pd
 import sys
 import getopt
+import re
+import logging
+import analyze
 
-server_ip = "10.10.0.3"
-client_ip = "10.10.2.1"
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+handler = logging.StreamHandler(sys.stdout)
+handler.setLevel(logging.DEBUG)
+logger.addHandler(handler)
 
 
-# source: http://code.activestate.com/recipes/511478/
-def percentile(N, percent, key=lambda x: x):
+def parse_quic_goodput(result_set_path):
     """
-    Find the percentile of a list of values.
-
-    @parameter N - is a list of values. Note N MUST BE already sorted.
-    @parameter percent - a float value from 0.0 to 1.0.
-    @parameter key - optional key function to compute value from each element of N.
-
-    @return - the percentile of the values
+    Parse the goodput of the QUIC measurements from the log files in the given folder.
+    :param result_set_path:
+    :return:
     """
-    if not N:
-        return None
-    k = (len(N) - 1) * percent
-    f = math.floor(k)
-    c = math.ceil(k)
-    if f == c:
-        return key(N[int(k)])
-    d0 = key(N[int(f)]) * (c - k)
-    d1 = key(N[int(c)]) * (k - f)
-    return d0 + d1
 
+    logger.info("Parsing QUIC goodput from log files")
 
-class StatsList:
-    def __init__(self):
-        self.items = list()
+    df = pd.DataFrame(columns=['run', 'second', 'bits'])
 
-    def __len__(self):
-        return len(self.items)
-
-    def add_packets(self, first, second):
-        self.items.append(float(second.sniff_timestamp) - float(first.sniff_timestamp))
-
-    def add_val(self, val):
-        self.items.append(val)
-
-    def cnt(self):
-        return len(self.items)
-
-    def mean(self):
-        if len(self.items) == 0:
-            return 0
-        return sum(self.items) / len(self.items)
-
-    def max(self):
-        if len(self.items) == 0:
-            return 0
-        return max(self.items)
-
-    def min(self):
-        if len(self.items) == 0:
-            return 0
-        return min(self.items)
-
-    def p95(self):
-        if len(self.items) == 0:
-            return 0
-        return percentile(sorted(self.items), 0.95)
-
-
-def load_json_file(path):
-    if not os.path.isfile(path):
-        return None
-
-    with open(path, 'r') as json_file:
-        try:
-            return json.load(json_file)
-        except json.JSONDecodeError as e:
-            json_file.seek(0)
-            json_str = json_file.read(e.pos)
-            return json.loads(json_str)
-
-
-def curl_established_time(log):
-    stats = StatsList()
-    with open(log) as logfile:
-        for line in logfile:
-            measurement = line.split(" ")[0].split("=")
-            if len(measurement) != 2 or measurement[0] != "established":
-                continue
-            conn_est = float(measurement[1].replace(",", "."))
-            stats.add_val(conn_est)
-    return stats
-
-
-def curl_ttfb(log):
-    stats = StatsList()
-    with open(log) as logfile:
-        for line in logfile:
-            measurement = line.split(" ")[1].split("=")
-            if len(measurement) != 2 or measurement[0] != "ttfb":
-                continue
-            ttfb = float(measurement[1].replace(",", "."))
-            stats.add_val(ttfb)
-    return stats
-
-
-def tcp_cwnd_evo(path):
-    evo = defaultdict(StatsList)
-
-    for i in range(11):
-        result_file = os.path.join(path, f"{i}_tcp_cwnd_evo.json")
-        if not os.path.isfile(result_file):
-            print(f"{result_file} not found, skipping")
-            continue
-
-        iperf = load_json_file(result_file)
-        if iperf is None:
-            continue
-
-        for idx, interval in enumerate(iperf['intervals']):
-            snd_cwnd = interval['streams'][0]['snd_cwnd']
-            if snd_cwnd > 0:
-                evo[idx].add_val(snd_cwnd)
-
-    if len(evo) > 0:
-        print(f"tcp_cwnd_evo: {max([x.cnt() for x in evo.values()])} items")
-    return evo
-
-
-def tcp_goodput(path):
-    goodput = defaultdict(StatsList)
-
-    for i in range(11):
-        result_file = os.path.join(path, f"{i}_tcp_goodput.json")
-        if not os.path.isfile(result_file):
-            print(f"{result_file} not found, skipping")
-            continue
-
-        iperf = load_json_file(result_file)
-        if iperf is None:
-            continue
-
-        for idx, interval in enumerate(iperf['intervals']):
-            bps = interval['streams'][0]['bits_per_second']
-            if bps > 0:
-                goodput[idx].add_val(bps)
-
-    if len(goodput) > 0:
-        print(f"tcp_goodput: {max([x.cnt() for x in goodput.values()])} items")
-    return goodput
-
-
-def qperf_conn_time(logs_path):
-    stats = StatsList()
-    path = os.path.join(logs_path, f"quic_ttfb.txt")
-    if not os.path.isfile(path):
-        print(f"quicly conn time error: {path} does not exist")
-        return
-
-    with open(path) as logfile:
-        for line in logfile:
-            line = line.strip()
-            if not line.startswith("connection establishment time:"):
-                continue
-
-            conn_est_time = int(line.split(" ")[-1][:-2]) / 1000
-            stats.add_val(conn_est_time)
-
-    print(f"qperf_conn_time: {stats.cnt()} items")
-    return stats
-
-
-def qperf_time_to_first_byte(logs_path):
-    stats = StatsList()
-    path = os.path.join(logs_path, f"quic_ttfb.txt")
-    if not os.path.isfile(path):
-        print(f"quicly time to first byte error: {path} does not exist")
-        return
-
-    with open(path) as logfile:
-        for line in logfile:
-            line = line.strip()
-            if not line.startswith("time to first byte:"):
-                continue
-            conn_est_time = int(line.split(" ")[-1][:-2]) / 1000
-            stats.add_val(conn_est_time)
-
-    print(f"qperf_time_to_first_byte: {stats.cnt()} items")
-    return stats
-
-
-def qperf_cwnd_evo(log_path):
-    evo_stats = defaultdict(StatsList)
-    for i in range(13):
-        path = os.path.join(log_path, f"{i}_quic_cwnd_evo.txt")
+    for file_name in os.listdir(result_set_path):
+        path = os.path.join(result_set_path, file_name)
         if not os.path.isfile(path):
+            logger.debug("'%s' is not a file, skipping")
+            continue
+        match = re.search(r"^(\d+)_quic_goodput\.txt$", file_name)
+        if not match:
+            logger.debug("'%s' doesn't match, skipping", file_name)
             continue
 
-        with open(path) as logfile:
-            for line in logfile:
-                line = line.strip()
-                if not line.startswith("connection 0 second"):
+        logger.debug("Parsing '%s'", file_name)
+        run = int(match.group(1))
+        with open(path) as file:
+            for line in file:
+                line_match = re.search(r"^second (\d+):.*\((\d+) bytes received\)", line.strip())
+                if not line_match:
                     continue
-                second = int(line.split(" ")[3])
-                cwnd = int(line.split(" ")[6])
-                evo_stats[second].add_val(cwnd)
 
-    print(f"quic_cwnd_evo: {max(x.cnt() for x in evo_stats.values())} items")
-    return evo_stats
+                df = df.append({
+                    'run': run,
+                    'second': int(line_match.group(1)),
+                    'bits': int(line_match.group(2)) * 8
+                }, ignore_index=True)
+
+    return df
 
 
-def qperf_goodput(log_path):
-    goodput_stats = defaultdict(StatsList)
-    for i in range(13):
-        path = os.path.join(log_path, f"{i}_quic_goodput.txt")
+def parse_quic_cwnd_evo(result_set_path):
+    """
+    Parse the congestion window evolution of the QUIC measurements from the log files in the given folder.
+    :param result_set_path:
+    :return:
+    """
+
+    logger.info("Parsing QUIC congestion window evolution from log files")
+
+    df = pd.DataFrame(columns=['run', 'second', 'packets'])
+
+    for file_name in os.listdir(result_set_path):
+        path = os.path.join(result_set_path, file_name)
         if not os.path.isfile(path):
+            logger.debug("'%s' is not a file, skipping")
+            continue
+        match = re.search(r"^(\d+)_quic_cwnd_evo\.txt$", file_name)
+        if not match:
+            logger.debug("'%s' doesn't match, skipping", file_name)
             continue
 
-        with open(path) as logfile:
-            for line in logfile:
-                line = line.strip()
-                if not line.startswith("second"):
+        logger.debug("Parsing '%s'", file_name)
+        run = int(match.group(1))
+        with open(path) as file:
+            for line in file:
+                line_match = re.search(r"^connection.*second (\d+).*send window: (\d+)", line.strip())
+                if not line_match:
                     continue
-                second = int(line.split(" ")[1][:-1])
-                bytes_received = int(line.split(" ")[4][1:])
-                goodput_stats[second].add_val(bytes_received * 8)
 
-    print(f"quic_goodput: {max(x.cnt() for x in goodput_stats.values())} items")
-    return goodput_stats
+                df = df.append({
+                    'run': run,
+                    'second': int(line_match.group(1)),
+                    'packets': int(line_match.group(2))
+                }, ignore_index=True)
+
+    return df
 
 
 def measure_folders(root_folder):
-    for delay in ["LEO", "MEO", "GEO"]:
-        for rate in ["1mbit", "10mbit", "100mbit"]:
-            for loss in ["0.01", "0.1", "1", "5"]:
-                for queue in ["1", "2", "5", "10"]:
-                    for pep in ["none", "bbr", "hybla", "fec"]:
-                        pep_text = f"_{pep}" if pep != "none" else ""
-                        measure_folder = os.path.join(root_folder, f"{delay}_r{rate}_l{loss}_q{queue}{pep_text}")
+    for folder_name in os.listdir(root_folder):
+        path = os.path.join(root_folder, folder_name)
+        if not os.path.isdir(path):
+            logger.debug("'%s' is not a directory, skipping", folder_name)
+            continue
 
-                        if os.path.isdir(measure_folder):
-                            yield delay, rate, loss + '%', queue, pep, measure_folder
+        match = re.search(r"^(GEO|MEO|LEO)_r(\d+)mbit_l(\d+(?:\.\d+)?)_q(\d+(?:\.\d+)?)(?:_([a-z]+))?$", folder_name)
+        if not match:
+            logger.info("Directory '%s' doesn't match, skipping", folder_name)
+            continue
+
+        delay = match.group(1)
+        rate = int(match.group(2))
+        loss = float(match.group(3)) / 100.0
+        queue = float(match.group(4))
+        pep = match.group(5) if match.group(5) else "none"
+        yield folder_name, delay, rate, loss, queue, pep
 
 
-def parse(in_dir="~/measure", out_dir="."):
-    tcp_conn_times = list()
-    tcp_ttfb = list()
-    tcp_cwnd_evos = list()
-    tcp_goodputs = list()
+def parse(in_dir="~/measure"):
+    logger.info("Parsing measurement results in '%s'", in_dir)
+    quic_goodput = pd.DataFrame(columns=['delay', 'rate', 'loss', 'queue', 'pep', 'run', 'second', 'bits'])
+    quic_cwnd_evo = pd.DataFrame(columns=['delay', 'rate', 'loss', 'queue', 'pep', 'run', 'second', 'packets'])
 
-    tls_conn_times = list()
-    tls_ttfb = list()
+    for folder_name, delay, rate, loss, queue, pep in measure_folders(in_dir):
+        logger.info("Parsing files in %s", folder_name)
+        path = os.path.join(in_dir, folder_name)
 
-    quic_conn_times = list()
-    quic_ttfb = list()
-    quic_cwnd_evos = list()
-    quic_goodputs = list()
+        # QUIC goodput
+        df = parse_quic_goodput(path)
+        df['delay'] = delay
+        df['rate'] = rate
+        df['loss'] = loss
+        df['queue'] = queue
+        df['pep'] = pep
+        quic_goodput = quic_goodput.append(df, ignore_index=True)
 
-    quic_fec_conn_times = list()
-    quic_fec_ttfb = list()
-    quic_fec_cwnd_evos = list()
-    quic_fec_goodputs = list()
+        # QUIC congestion window evolution
+        df = parse_quic_cwnd_evo(path)
+        df['delay'] = delay
+        df['rate'] = rate
+        df['loss'] = loss
+        df['queue'] = queue
+        df['pep'] = pep
+        quic_cwnd_evo = quic_cwnd_evo.append(df, ignore_index=True)
 
-    for delay, rate, loss, queue, pep, folder in measure_folders(in_dir):
-        print(f"\ndelay={delay} rate={rate} loss={loss} queue={queue} pep={pep}")
+    # Fix data types
+    quic_goodput['rate'] = pd.to_numeric(quic_goodput['rate'])
+    quic_goodput['loss'] = pd.to_numeric(quic_goodput['loss'])
+    quic_goodput['queue'] = pd.to_numeric(quic_goodput['queue'])
+    quic_goodput['run'] = pd.to_numeric(quic_goodput['run'])
+    quic_goodput['second'] = pd.to_numeric(quic_goodput['second'])
+    quic_goodput['bits'] = pd.to_numeric(quic_goodput['bits'])
 
-        # tcp & tls -----------------------------------------------------------------------------------
-        result_file = os.path.join(folder, "tcp_conn_est.txt")
-        if os.path.isfile(result_file):
-            s = curl_established_time(result_file)
-            print(f"tcp_conn_time: {s.cnt()} items")
-            tcp_conn_times.append([delay, rate, loss, queue, pep, s.mean(), s.min(), s.max(), s.p95()])
-        else:
-            print(f"{result_file} not found, skipping")
+    quic_cwnd_evo['rate'] = pd.to_numeric(quic_cwnd_evo['rate'])
+    quic_cwnd_evo['loss'] = pd.to_numeric(quic_cwnd_evo['loss'])
+    quic_cwnd_evo['queue'] = pd.to_numeric(quic_cwnd_evo['queue'])
+    quic_cwnd_evo['run'] = pd.to_numeric(quic_cwnd_evo['run'])
+    quic_cwnd_evo['second'] = pd.to_numeric(quic_cwnd_evo['second'])
+    quic_cwnd_evo['packets'] = pd.to_numeric(quic_cwnd_evo['packets'])
 
-        result_file = os.path.join(folder, "tls_conn_est.txt")
-        if os.path.isfile(result_file):
-            s = curl_established_time(result_file)
-            print(f"tls_conn_time: {s.cnt()} items")
-            tls_conn_times.append([delay, rate, loss, queue, pep, s.mean(), s.min(), s.max(), s.p95()])
-        else:
-            print(f"{result_file} not found, skipping")
-
-        result_file = os.path.join(folder, "tcp_conn_est.txt")
-        if os.path.isfile(result_file):
-            s = curl_ttfb(result_file)
-            print(f"tcp_ttfb: {s.cnt()} items")
-            tcp_ttfb.append([delay, rate, loss, queue, pep, s.mean(), s.min(), s.max(), s.p95()])
-        else:
-            print(f"{result_file} not found, skipping")
-
-        result_file = os.path.join(folder, "tls_conn_est.txt")
-        if os.path.isfile(result_file):
-            s = curl_ttfb(result_file)
-            print(f"tls_ttfb: {s.cnt()} items")
-            tls_ttfb.append([delay, rate, loss, queue, pep, s.mean(), s.min(), s.max(), s.p95()])
-        else:
-            print(f"{result_file} not found, skipping")
-
-        for time, cwnd in sorted(tcp_cwnd_evo(folder).items(), key=lambda x: x[0]):
-            tcp_cwnd_evos.append([delay, rate, loss, queue, pep, time,
-                                  int(cwnd.mean()), int(cwnd.min()), int(cwnd.max()), int(cwnd.p95())])
-
-        for time, goodput in sorted(tcp_goodput(folder).items(), key=lambda x: x[0]):
-            tcp_goodputs.append(([delay, rate, loss, queue, pep, time,
-                                  int(goodput.mean()), int(goodput.min()), int(goodput.max()), int(goodput.p95())]))
-
-        if pep == "none":
-            # quic ----------------------------------------------------------------------------------------
-            s = qperf_conn_time(folder)
-            quic_conn_times.append([delay, rate, loss, queue, s.mean(), s.min(), s.max(), s.p95()])
-
-            s = qperf_time_to_first_byte(folder)
-            quic_ttfb.append([delay, rate, loss, queue, s.mean(), s.min(), s.max(), s.p95()])
-
-            for time, cwnd in sorted(qperf_cwnd_evo(folder).items(), key=lambda x: x[0]):
-                quic_cwnd_evos.append([delay, rate, loss, queue, time,
-                                       int(cwnd.mean()), int(cwnd.min()), int(cwnd.max()), int(cwnd.p95())])
-
-            for time, goodput in sorted(qperf_goodput(folder).items(), key=lambda x: x[0]):
-                quic_goodputs.append([delay, rate, loss, queue, time,
-                                      int(goodput.mean()), int(goodput.min()), int(goodput.max()), int(goodput.p95())])
-
-        elif pep == "fec":
-            # quic over fec tunnel ------------------------------------------------------------------------
-            s = qperf_conn_time(folder)
-            quic_fec_conn_times.append([delay, rate, loss, queue, s.mean(), s.min(), s.max(), s.p95()])
-
-            s = qperf_time_to_first_byte(folder)
-            quic_fec_ttfb.append([delay, rate, loss, queue, s.mean(), s.min(), s.max(), s.p95()])
-
-            for time, cwnd in sorted(qperf_cwnd_evo(folder).items(), key=lambda x: x[0]):
-                quic_fec_cwnd_evos.append([delay, rate, loss, queue, time,
-                                           int(cwnd.mean()), int(cwnd.min()), int(cwnd.max()), int(cwnd.p95())])
-
-            for time, goodput in sorted(qperf_goodput(folder).items(), key=lambda x: x[0]):
-                quic_fec_goodputs.append([delay, rate, loss, queue, time,
-                                          int(goodput.mean()), int(goodput.min()), int(goodput.max()),
-                                          int(goodput.p95())])
-
-    # Write results
-    if not os.path.exists(out_dir):
-        os.mkdir(out_dir)
-    if not os.path.isdir(out_dir):
-        print(f"{out_dir} is not a directory, cannot write parsed results")
-        return
-
-    with open(os.path.join(out_dir, "tcp_connection_establishment.csv"), "w", newline='') as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow(["delay", "rate", "loss", "queue", "pep", "mean", "min", "max", "p95"])
-        writer.writerows(tcp_conn_times)
-
-    with open(os.path.join(out_dir, "tls_connection_establishment.csv"), "w", newline='') as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow(["delay", "rate", "loss", "queue", "pep", "mean", "min", "max", "p95"])
-        writer.writerows(tls_conn_times)
-
-    with open(os.path.join(out_dir, "tcp_time_to_first_byte.csv"), "w", newline='') as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow(["delay", "rate", "loss", "queue", "pep", "mean", "min", "max", "p95"])
-        writer.writerows(tcp_ttfb)
-
-    with open(os.path.join(out_dir, "tls_time_to_first_byte.csv"), "w", newline='') as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow(["delay", "rate", "loss", "queue", "pep", "mean", "min", "max", "p95"])
-        writer.writerows(tls_ttfb)
-
-    with open(os.path.join(out_dir, "tcp_cwnd_evolution.csv"), "w", newline='') as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow(["delay", "rate", "loss", "queue", "pep", "time", "mean", "min", "max", "p95"])
-        writer.writerows(tcp_cwnd_evos)
-
-    with open(os.path.join(out_dir, "tcp_goodput.csv"), "w", newline='') as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow(["delay", "rate", "loss", "queue", "pep", "time", "mean", "min", "max", "p95"])
-        writer.writerows(tcp_goodputs)
-
-    with open(os.path.join(out_dir, "quic_connection_establishment.csv"), "w", newline='') as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow(["delay", "rate", "loss", "queue", "mean", "min", "max", "p95"])
-        writer.writerows(quic_conn_times)
-
-    with open(os.path.join(out_dir, "quic_time_to_first_byte.csv"), "w", newline='') as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow(["delay", "rate", "loss", "queue", "mean", "min", "max", "p95"])
-        writer.writerows(quic_ttfb)
-
-    with open(os.path.join(out_dir, "quic_cwnd_evolution.csv"), "w", newline='') as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow(["delay", "rate", "loss", "queue", "time", "mean", "min", "max", "p95"])
-        writer.writerows(quic_cwnd_evos)
-
-    with open(os.path.join(out_dir, "quic_goodput.csv"), "w", newline='') as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow(["delay", "rate", "loss", "queue", "time", "mean", "min", "max", "p95"])
-        writer.writerows(quic_goodputs)
-
-    with open(os.path.join(out_dir, "quic_fec_connection_establishment.csv"), "w", newline='') as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow(["delay", "rate", "loss", "queue", "mean", "min", "max", "p95"])
-        writer.writerows(quic_fec_conn_times)
-
-    with open(os.path.join(out_dir, "quic_fec_time_to_first_byte.csv"), "w", newline='') as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow(["delay", "rate", "loss", "queue", "mean", "min", "max", "p95"])
-        writer.writerows(quic_fec_ttfb)
-
-    with open(os.path.join(out_dir, "quic_fec_cwnd_evolution.csv"), "w", newline='') as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow(["delay", "rate", "loss", "queue", "time", "mean", "min", "max", "p95"])
-        writer.writerows(quic_fec_cwnd_evos)
-
-    with open(os.path.join(out_dir, "quic_fec_goodput.csv"), "w", newline='') as csvfile:
-        writer = csv.writer(csvfile)
-        writer.writerow(["delay", "rate", "loss", "queue", "time", "mean", "min", "max", "p95"])
-        writer.writerows(quic_fec_goodputs)
-
-    print("done")
+    return quic_goodput, quic_cwnd_evo
 
 
 def main(argv):
@@ -439,7 +171,9 @@ def main(argv):
         elif opt in ("-o", "--output"):
             out_dir = arg
 
-    parse(in_dir, out_dir)
+    quic_goodput, quic_cwnd_evo = parse(in_dir)
+    analyze.analyze_quic_goodput(quic_goodput, out_dir=out_dir)
+    analyze.analyze_quic_cwnd_evo(quic_cwnd_evo, out_dir=out_dir)
 
 
 if __name__ == '__main__':
