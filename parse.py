@@ -61,7 +61,7 @@ def parse_quic_cwnd_evo(result_set_path):
 
     logger.info("Parsing QUIC congestion window evolution from log files")
 
-    df = pd.DataFrame(columns=['run', 'second', 'packets'])
+    df = pd.DataFrame(columns=['run', 'second', 'bytes'])
 
     for file_name in os.listdir(result_set_path):
         path = os.path.join(result_set_path, file_name)
@@ -84,7 +84,7 @@ def parse_quic_cwnd_evo(result_set_path):
                 df = df.append({
                     'run': run,
                     'second': int(line_match.group(1)),
-                    'packets': int(line_match.group(2))
+                    'bytes': int(line_match.group(2))
                 }, ignore_index=True)
 
     return df
@@ -113,7 +113,7 @@ def measure_folders(root_folder):
 def parse(in_dir="~/measure"):
     logger.info("Parsing measurement results in '%s'", in_dir)
     quic_goodput = pd.DataFrame(columns=['delay', 'rate', 'loss', 'queue', 'pep', 'run', 'second', 'bits'])
-    quic_cwnd_evo = pd.DataFrame(columns=['delay', 'rate', 'loss', 'queue', 'pep', 'run', 'second', 'packets'])
+    quic_cwnd_evo = pd.DataFrame(columns=['delay', 'rate', 'loss', 'queue', 'pep', 'run', 'second', 'bytes'])
 
     for folder_name, delay, rate, loss, queue, pep in measure_folders(in_dir):
         logger.info("Parsing files in %s", folder_name)
@@ -150,7 +150,7 @@ def parse(in_dir="~/measure"):
     quic_cwnd_evo['queue'] = pd.to_numeric(quic_cwnd_evo['queue'])
     quic_cwnd_evo['run'] = pd.to_numeric(quic_cwnd_evo['run'])
     quic_cwnd_evo['second'] = pd.to_numeric(quic_cwnd_evo['second'])
-    quic_cwnd_evo['packets'] = pd.to_numeric(quic_cwnd_evo['packets'])
+    quic_cwnd_evo['bytes'] = pd.to_numeric(quic_cwnd_evo['bytes'])
 
     return quic_goodput, quic_cwnd_evo
 

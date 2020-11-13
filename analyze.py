@@ -89,3 +89,41 @@ def analyze_quic_cwnd_evo(df: pd.DataFrame, out_dir="."):
     df.to_pickle(os.path.join(out_dir, "quic_cwnd_evo.pkl"))
     with open(os.path.join(out_dir, "quic_cwnd_evo.csv"), 'w+') as out_file:
         df.to_csv(out_file)
+
+    # Generate graphs
+    for sat in df['delay'].unique():
+        for rate in df['rate'].unique():
+            g = gnuplot.Gnuplot(log=True)
+            g.set(title='"Congestion window evolution - %s - %.0f Mbit/s"' % (sat, rate),
+                  key='outside right center vertical',
+                  ylabel='"Congestion window (KB)"',
+                  xlabel='"Time (s)"',
+                  xrange='[0:30]',
+                  term='pdf size 12cm, 6cm',
+                  out='"%s"' % os.path.join(out_dir, "quic_cwnd_evo_%s_%s.pdf" % (sat, rate)),
+                  pointsize='1',
+                  logscale='y')
+
+            # Filter only data relevant for graph
+            gdf = df.loc[(df['delay'] == sat) & (df['rate'] == rate) & (df['second'] < 30)]
+            gdf = gdf[['loss', 'queue', 'pep', 'second', 'bytes']]
+            # Calculate mean average per second over all runs
+            gdf = gdf.groupby(['loss', 'queue', 'pep', 'second']).mean()
+
+            # Collect all variations of data
+            gdata = []
+            for loss in df['loss'].unique():
+                for queue in df['queue'].unique():
+                    for pep in df['pep'].unique():
+                        gdata.append((gdf.loc[(loss, queue, pep), 'bytes'], pep, loss, queue))
+            gdata = sorted(gdata, key=lambda x: [x[1], x[2], x[3]])
+
+            # Merge data to single dataframe
+            plot_df = pd.concat([x[0] for x in gdata], axis=1)
+            # Generate gnuplot commands
+            plot_cmds = ["using 1:($%d/1000) with linespoints pointtype %d linecolor '%s' title 'QUIC%s l=%.2f%% q=%.0f'" %
+                         (index + 2, get_point_type(loss), get_line_color(queue),
+                          pep.upper() if pep is not "none" else "", loss * 100.0, queue)
+                         for index, (_, pep, loss, queue) in enumerate(gdata)]
+
+            g.plot_data(plot_df, *plot_cmds)
