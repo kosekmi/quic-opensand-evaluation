@@ -172,6 +172,13 @@ def main(argv):
             out_dir = arg
 
     quic_goodput, quic_cwnd_evo = parse(in_dir)
+
+    if not os.path.exists(out_dir):
+        os.mkdir(out_dir)
+    if not os.path.isdir(out_dir):
+        logger.error("Output directory is not a directory! Skipping analysis")
+        return
+
     analyze.analyze_quic_goodput(quic_goodput, out_dir=out_dir)
     analyze.analyze_quic_cwnd_evo(quic_cwnd_evo, out_dir=out_dir)
 
