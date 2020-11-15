@@ -39,10 +39,10 @@ def get_line_color(queue):
     return "gray"
 
 
-def analyze_quic_goodput(df: pd.DataFrame, out_dir="."):
+def analyze_goodput(df: pd.DataFrame, out_dir="."):
     # Save data
-    df.to_pickle(os.path.join(out_dir, "quic_goodput.pkl"))
-    with open(os.path.join(out_dir, "quic_goodput.csv"), 'w+') as out_file:
+    df.to_pickle(os.path.join(out_dir, "goodput.pkl"))
+    with open(os.path.join(out_dir, "goodput.csv"), 'w+') as out_file:
         df.to_csv(out_file)
 
     # Generate graphs
@@ -78,16 +78,16 @@ def analyze_quic_goodput(df: pd.DataFrame, out_dir="."):
             # Generate gnuplot commands
             plot_cmds = ["using 1:($%d/1000) with linespoints pointtype %d linecolor '%s' title 'QUIC%s l=%.2f%% q=%.0f'" %
                          (index + 2, get_point_type(loss), get_line_color(queue),
-                          pep.upper() if pep is not "none" else "", loss * 100.0, queue)
+                          pep.upper() if pep != "none" else "", loss * 100.0, queue)
                          for index, (_, pep, loss, queue) in enumerate(gdata)]
 
             g.plot_data(plot_df, *plot_cmds)
 
 
-def analyze_quic_cwnd_evo(df: pd.DataFrame, out_dir="."):
+def analyze_cwnd_evo(df: pd.DataFrame, out_dir="."):
     # Save data
-    df.to_pickle(os.path.join(out_dir, "quic_cwnd_evo.pkl"))
-    with open(os.path.join(out_dir, "quic_cwnd_evo.csv"), 'w+') as out_file:
+    df.to_pickle(os.path.join(out_dir, "cwnd_evo.pkl"))
+    with open(os.path.join(out_dir, "cwnd_evo.csv"), 'w+') as out_file:
         df.to_csv(out_file)
 
     # Generate graphs
@@ -106,7 +106,7 @@ def analyze_quic_cwnd_evo(df: pd.DataFrame, out_dir="."):
 
             # Filter only data relevant for graph
             gdf = df.loc[(df['delay'] == sat) & (df['rate'] == rate) & (df['second'] < 30)]
-            gdf = gdf[['loss', 'queue', 'pep', 'second', 'bytes']]
+            gdf = gdf[['loss', 'queue', 'pep', 'second', 'cwnd']]
             # Calculate mean average per second over all runs
             gdf = gdf.groupby(['loss', 'queue', 'pep', 'second']).mean()
 
@@ -115,7 +115,7 @@ def analyze_quic_cwnd_evo(df: pd.DataFrame, out_dir="."):
             for loss in df['loss'].unique():
                 for queue in df['queue'].unique():
                     for pep in df['pep'].unique():
-                        gdata.append((gdf.loc[(loss, queue, pep), 'bytes'], pep, loss, queue))
+                        gdata.append((gdf.loc[(loss, queue, pep), 'cwnd'], pep, loss, queue))
             gdata = sorted(gdata, key=lambda x: [x[1], x[2], x[3]])
 
             # Merge data to single dataframe
@@ -123,7 +123,7 @@ def analyze_quic_cwnd_evo(df: pd.DataFrame, out_dir="."):
             # Generate gnuplot commands
             plot_cmds = ["using 1:($%d/1000) with linespoints pointtype %d linecolor '%s' title 'QUIC%s l=%.2f%% q=%.0f'" %
                          (index + 2, get_point_type(loss), get_line_color(queue),
-                          pep.upper() if pep is not "none" else "", loss * 100.0, queue)
+                          pep.upper() if pep != "none" else "", loss * 100.0, queue)
                          for index, (_, pep, loss, queue) in enumerate(gdata)]
 
             g.plot_data(plot_df, *plot_cmds)
