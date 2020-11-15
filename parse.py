@@ -28,20 +28,19 @@ def load_json_file(path: str):
     with open(path, 'r') as file:
         try:
             return json.load(file)
-        except json.JSONDecodeError as e:
-            if e.msg != "Extra data":
+        except json.JSONDecodeError as err:
+            if err.msg != "Extra data":
                 logger.exception("Failed to load json file '%s'" % path)
                 return None
 
             # Read only first object from file, ignore extra data
             file.seek(0)
-            json_str = file.read(e.pos)
+            json_str = file.read(err.pos)
             try:
                 return json.loads(json_str)
-            except json.JSONDecodeError as e:
+            except json.JSONDecodeError:
                 logger.exception("Failed to read json file '%s'" % path)
                 return None
-
 
 
 def parse_quic_goodput(result_set_path):
@@ -173,6 +172,44 @@ def measure_folders(root_folder):
         yield folder_name, delay, rate, loss, queue, pep
 
 
+def extend_df(df, protocol, pep, delay, rate, loss, queue):
+    """
+    Extends the dataframe containing the data of a single file with the information gained from the file path. This puts
+    the single measurement in the context of all measurements.
+    :param df:
+    :param protocol:
+    :param pep:
+    :param delay:
+    :param rate:
+    :param loss:
+    :param queue:
+    :return:
+    """
+
+    df['protocol'] = protocol
+    df['pep'] = pep
+    df['delay'] = delay
+    df['rate'] = rate
+    df['loss'] = loss
+    df['queue'] = queue
+    return df
+
+
+def fix_column_dtypes(df):
+    """
+    Ensures that the data types of each column are correct. Converts the data if necessary.
+    :param df:
+    :return:
+    """
+
+    numerics = {'rate', 'loss', 'queue', 'run', 'second', 'bits', 'cwnd'}
+    cols = df.columns.to_list()
+    for col_name in numerics.intersection(cols):
+        df[col_name] = pd.to_numeric(df[col_name])
+
+    return df
+
+
 def parse(in_dir="~/measure"):
     logger.info("Parsing measurement results in '%s'", in_dir)
     df_goodput = pd.DataFrame(columns=['protocol', 'pep', 'delay', 'rate', 'loss', 'queue', 'run', 'second', 'bits'])
@@ -184,48 +221,23 @@ def parse(in_dir="~/measure"):
 
         # QUIC goodput
         df = parse_quic_goodput(path)
-        df['protocol'] = 'quic'
-        df['pep'] = pep
-        df['delay'] = delay
-        df['rate'] = rate
-        df['loss'] = loss
-        df['queue'] = queue
+        df = extend_df(df, 'quic', pep, delay, rate, loss, queue)
         df_goodput = df_goodput.append(df, ignore_index=True)
 
         # QUIC congestion window evolution
         df = parse_quic_cwnd_evo(path)
-        df['protocol'] = 'quic'
-        df['pep'] = pep
-        df['delay'] = delay
-        df['rate'] = rate
-        df['loss'] = loss
-        df['queue'] = queue
+        df = extend_df(df, 'quic', pep, delay, rate, loss, queue)
         df_cwnd_evo = df_cwnd_evo.append(df, ignore_index=True)
 
         # TCP congestion window evolution
         df = parse_tcp_cwnd_evo(path)
-        df['protocol'] = 'tcp'
-        df['pep'] = pep
-        df['delay'] = delay
-        df['rate'] = rate
-        df['loss'] = loss
-        df['queue'] = queue
+        df = extend_df(df, 'tcp', pep, delay, rate, loss, queue)
         df_cwnd_evo = df_cwnd_evo.append(df, ignore_index=True)
 
     # Fix data types
-    df_goodput['rate'] = pd.to_numeric(df_goodput['rate'])
-    df_goodput['loss'] = pd.to_numeric(df_goodput['loss'])
-    df_goodput['queue'] = pd.to_numeric(df_goodput['queue'])
-    df_goodput['run'] = pd.to_numeric(df_goodput['run'])
-    df_goodput['second'] = pd.to_numeric(df_goodput['second'])
-    df_goodput['bits'] = pd.to_numeric(df_goodput['bits'])
-
-    df_cwnd_evo['rate'] = pd.to_numeric(df_cwnd_evo['rate'])
-    df_cwnd_evo['loss'] = pd.to_numeric(df_cwnd_evo['loss'])
-    df_cwnd_evo['queue'] = pd.to_numeric(df_cwnd_evo['queue'])
-    df_cwnd_evo['run'] = pd.to_numeric(df_cwnd_evo['run'])
-    df_cwnd_evo['second'] = pd.to_numeric(df_cwnd_evo['second'])
-    df_cwnd_evo['cwnd'] = pd.to_numeric(df_cwnd_evo['cwnd'])
+    logger.info("Fixing data types")
+    fix_column_dtypes(df_goodput)
+    fix_column_dtypes(df_cwnd_evo)
 
     return df_goodput, df_cwnd_evo
 
