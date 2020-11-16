@@ -115,6 +115,43 @@ def parse_quic_cwnd_evo(result_set_path):
     return df
 
 
+def parse_tcp_goodput(result_set_path):
+    """
+    Parse the goodput of the TCP measurements from the log files in the given folder.
+    :param result_set_path:
+    :return:
+    """
+
+    logger.info("Parsing TCP goodput from log files")
+    df = pd.DataFrame(columns=['run', 'second', 'bits'])
+
+    for file_name in os.listdir(result_set_path):
+        path = os.path.join(result_set_path, file_name)
+        if not os.path.isfile(path):
+            logger.debug("'%s' is not a file, skipping")
+            continue
+        match = re.search(r"^(\d+)_tcp_goodput\.json$", file_name)
+        if not match:
+            continue
+
+        logger.debug("Parsing '%s'", file_name)
+        run = int(match.group(1))
+
+        results = load_json_file(path)
+        if results is None:
+            logger.warning("'%s' has no content" % path)
+            continue
+
+        for interval in results['intervals']:
+            df = df.append({
+                'run': run,
+                'second': round(interval['sum']['start']),
+                'bits': int(interval['streams'][0]['bits_per_second'])
+            }, ignore_index=True)
+
+    return df
+
+
 def parse_tcp_cwnd_evo(result_set_path):
     """
     Parse the congestion window evolution of the TCP measurements from the log files in the given folder.
@@ -228,6 +265,11 @@ def parse(in_dir="~/measure"):
         df = parse_quic_cwnd_evo(path)
         df = extend_df(df, 'quic', pep, delay, rate, loss, queue)
         df_cwnd_evo = df_cwnd_evo.append(df, ignore_index=True)
+
+        # TCP goodput
+        df = parse_tcp_goodput(path)
+        df = extend_df(df, 'tcp', pep, delay, rate, loss, queue)
+        df_goodput = df_goodput.append(df, ignore_index=True)
 
         # TCP congestion window evolution
         df = parse_tcp_cwnd_evo(path)
