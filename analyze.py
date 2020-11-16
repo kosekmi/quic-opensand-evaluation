@@ -111,7 +111,7 @@ def analyze_cwnd_evo(df: pd.DataFrame, out_dir="."):
         for rate in df['rate'].unique():
             for loss in df['loss'].unique():
                 g = gnuplot.Gnuplot(log=True)
-                g.set(title='"Congestion window evolution - %s - %.0f Mbit/s - %.f%%"' % (sat, rate, loss * 100),
+                g.set(title='"Congestion window evolution - %s - %.0f Mbit/s - %.2f%%"' % (sat, rate, loss * 100),
                       key='outside right center vertical',
                       ylabel='"Congestion window (KB)"',
                       xlabel='"Time (s)"',
