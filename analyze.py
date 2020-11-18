@@ -60,8 +60,7 @@ def analyze_goodput(df: pd.DataFrame, out_dir="."):
                       xrange='[0:30]',
                       term='pdf size 12cm, 6cm',
                       out='"%s"' % os.path.join(out_dir, "goodput_%s_r%s_l%.2f.pdf" % (sat, rate, loss * 100)),
-                      pointsize='0.5',
-                      logscale='y')
+                      pointsize='0.5')
 
                 # Filter only data relevant for graph
                 gdf = df.loc[(df['delay'] == sat) & (df['rate'] == rate) & (df['loss'] == loss) & (df['second'] < 30)]
@@ -118,8 +117,7 @@ def analyze_cwnd_evo(df: pd.DataFrame, out_dir="."):
                       xrange='[0:30]',
                       term='pdf size 12cm, 6cm',
                       out='"%s"' % os.path.join(out_dir, "cwnd_evo_%s_r%s_l%.2f.pdf" % (sat, rate, loss * 100)),
-                      pointsize='0.5',
-                      logscale='y')
+                      pointsize='0.5')
 
                 # Filter only data relevant for graph
                 gdf = df.loc[(df['delay'] == sat) & (df['rate'] == rate) & (df['loss'] == loss) & (df['second'] < 30)]
