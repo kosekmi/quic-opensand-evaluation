@@ -197,7 +197,7 @@ def measure_folders(root_folder):
             continue
 
         match = re.search(
-            r"^(GEO|MEO|LEO)_r(\d+)mbit_l(\d+(?:\.\d+)?)_q(\d+(?:\.\d+)?)(?:_txq(\d+))?(?:_([a-z]+))?$",
+            r"^(GEO|MEO|LEO)_r(\d+)mbit_l(\d+(?:\.\d+)?)_q(\d+(?:\.\d+)?)(?:_txq(\d+))?(?:_dq(\d+))?(?:_([a-z]+))?$",
             folder_name)
         if not match:
             logger.info("Directory '%s' doesn't match, skipping", folder_name)
@@ -208,11 +208,12 @@ def measure_folders(root_folder):
         loss = float(match.group(3)) / 100.0
         queue = float(match.group(4))
         txq = int(match.group(5)) if match.group(5) else 1000
-        pep = match.group(6) if match.group(6) else "none"
-        yield folder_name, delay, rate, loss, queue, txq, pep
+        driver = int(match.group(6)) if match.group(6) else 512
+        pep = match.group(7) if match.group(7) else "none"
+        yield folder_name, delay, rate, loss, queue, txq, driver, pep
 
 
-def extend_df(df, protocol, pep, delay, rate, loss, queue, txq):
+def extend_df(df, protocol, pep, delay, rate, loss, queue, txq, driver):
     """
     Extends the dataframe containing the data of a single file with the information gained from the file path. This puts
     the single measurement in the context of all measurements.
@@ -233,6 +234,7 @@ def extend_df(df, protocol, pep, delay, rate, loss, queue, txq):
     df['loss'] = loss
     df['queue'] = queue
     df['txq'] = txq
+    df['driver'] = driver
     return df
 
 
@@ -243,7 +245,7 @@ def fix_column_dtypes(df):
     :return:
     """
 
-    numerics = {'rate', 'loss', 'queue', 'txq', 'run', 'second', 'bits', 'cwnd'}
+    numerics = {'rate', 'loss', 'queue', 'txq', 'driver', 'run', 'second', 'bits', 'cwnd'}
     cols = df.columns.to_list()
     for col_name in numerics.intersection(cols):
         df[col_name] = pd.to_numeric(df[col_name])
@@ -253,31 +255,31 @@ def fix_column_dtypes(df):
 
 def parse(in_dir="~/measure"):
     logger.info("Parsing measurement results in '%s'", in_dir)
-    df_goodput = pd.DataFrame(columns=['protocol', 'pep', 'delay', 'rate', 'loss', 'queue', 'txq', 'run', 'second', 'bits'])
-    df_cwnd_evo = pd.DataFrame(columns=['protocol', 'pep', 'delay', 'rate', 'loss', 'queue', 'txq', 'run', 'second', 'cwnd'])
+    df_goodput = pd.DataFrame(columns=['protocol', 'pep', 'delay', 'rate', 'loss', 'queue', 'txq', 'driver', 'run', 'second', 'bits'])
+    df_cwnd_evo = pd.DataFrame(columns=['protocol', 'pep', 'delay', 'rate', 'loss', 'queue', 'txq', 'driver', 'run', 'second', 'cwnd'])
 
-    for folder_name, delay, rate, loss, queue, txq, pep in measure_folders(in_dir):
+    for folder_name, delay, rate, loss, queue, txq, driver, pep in measure_folders(in_dir):
         logger.info("Parsing files in %s", folder_name)
         path = os.path.join(in_dir, folder_name)
 
         # QUIC goodput
         df = parse_quic_goodput(path)
-        df = extend_df(df, 'quic', pep, delay, rate, loss, queue, txq)
+        df = extend_df(df, 'quic', pep, delay, rate, loss, queue, txq, driver)
         df_goodput = df_goodput.append(df, ignore_index=True)
 
         # QUIC congestion window evolution
         df = parse_quic_cwnd_evo(path)
-        df = extend_df(df, 'quic', pep, delay, rate, loss, queue, txq)
+        df = extend_df(df, 'quic', pep, delay, rate, loss, queue, txq, driver)
         df_cwnd_evo = df_cwnd_evo.append(df, ignore_index=True)
 
         # TCP goodput
         df = parse_tcp_goodput(path)
-        df = extend_df(df, 'tcp', pep, delay, rate, loss, queue, txq)
+        df = extend_df(df, 'tcp', pep, delay, rate, loss, queue, txq, driver)
         df_goodput = df_goodput.append(df, ignore_index=True)
 
         # TCP congestion window evolution
         df = parse_tcp_cwnd_evo(path)
-        df = extend_df(df, 'tcp', pep, delay, rate, loss, queue, txq)
+        df = extend_df(df, 'tcp', pep, delay, rate, loss, queue, txq, driver)
         df_cwnd_evo = df_cwnd_evo.append(df, ignore_index=True)
 
     # Fix data types
