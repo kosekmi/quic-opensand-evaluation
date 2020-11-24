@@ -64,32 +64,32 @@ def analyze_goodput(df: pd.DataFrame, out_dir="."):
 
                 # Filter only data relevant for graph
                 gdf = df.loc[(df['delay'] == sat) & (df['rate'] == rate) & (df['loss'] == loss) & (df['second'] < 30)]
-                gdf = gdf[['protocol', 'pep', 'driver', 'second', 'bits']]
+                gdf = gdf[['protocol', 'pep', 'txq', 'second', 'bits']]
                 # Calculate mean average per second over all runs
-                gdf = gdf.groupby(['protocol', 'pep', 'driver', 'second']).mean()
+                gdf = gdf.groupby(['protocol', 'pep', 'txq', 'second']).mean()
 
                 # Collect all variations of data
                 gdata = []
                 for protocol in df['protocol'].unique():
                     for pep in df['pep'].unique():
-                        for driver in df['driver'].unique():
-                            gdata.append((gdf.loc[(protocol, pep, driver), 'bits'], protocol, pep, driver))
+                        for txq in df['txq'].unique():
+                            gdata.append((gdf.loc[(protocol, pep, txq), 'bits'], protocol, pep, txq))
                 gdata = sorted(gdata, key=lambda x: [x[1], x[2], x[3]])
 
                 # Merge data to single dataframe
                 plot_df = pd.concat([x[0] for x in gdata], axis=1)
                 # Generate gnuplot commands
                 plot_cmds = [
-                    "using 1:($%d/1000) with linespoints pointtype %d linecolor '%s' title '%s%s driver=%d'" %
+                    "using 1:($%d/1000) with linespoints pointtype %d linecolor '%s' title '%s%s txq=%d'" %
                     (
                         index + 2,
-                        get_point_type(point_map, driver),
+                        get_point_type(point_map, txq),
                         get_line_color(line_map, (protocol, pep)),
                         protocol.upper(),
                         (" (" + pep.upper() + ")") if pep != "none" else "",
-                        driver
+                        txq
                     )
-                    for index, (_, protocol, pep, driver) in enumerate(gdata)
+                    for index, (_, protocol, pep, txq) in enumerate(gdata)
                 ]
 
                 g.plot_data(plot_df, *plot_cmds)
@@ -121,32 +121,32 @@ def analyze_cwnd_evo(df: pd.DataFrame, out_dir="."):
 
                 # Filter only data relevant for graph
                 gdf = df.loc[(df['delay'] == sat) & (df['rate'] == rate) & (df['loss'] == loss) & (df['second'] < 30)]
-                gdf = gdf[['protocol', 'pep', 'driver', 'second', 'cwnd']]
+                gdf = gdf[['protocol', 'pep', 'txq', 'second', 'cwnd']]
                 # Calculate mean average per second over all runs
-                gdf = gdf.groupby(['protocol', 'pep', 'driver', 'second']).mean()
+                gdf = gdf.groupby(['protocol', 'pep', 'txq', 'second']).mean()
 
                 # Collect all variations of data
                 gdata = []
                 for protocol in df['protocol'].unique():
                     for pep in df['pep'].unique():
-                        for driver in df['driver'].unique():
-                            gdata.append((gdf.loc[(protocol, pep, driver), 'cwnd'], protocol, pep, driver))
+                        for txq in df['txq'].unique():
+                            gdata.append((gdf.loc[(protocol, pep, txq), 'cwnd'], protocol, pep, txq))
                 gdata = sorted(gdata, key=lambda x: [x[1], x[2], x[3]])
 
                 # Merge data to single dataframe
                 plot_df = pd.concat([x[0] for x in gdata], axis=1)
                 # Generate gnuplot commands
                 plot_cmds = [
-                    "using 1:($%d/1000) with linespoints pointtype %d linecolor '%s' title '%s%s driver=%d'" %
+                    "using 1:($%d/1000) with linespoints pointtype %d linecolor '%s' title '%s%s txq=%d'" %
                     (
                         index + 2,
-                        get_point_type(point_map, driver),
+                        get_point_type(point_map, txq),
                         get_line_color(line_map, (protocol, pep)),
                         protocol.upper(),
                         (" (" + pep.upper() + ")") if pep != "none" else "",
-                        driver
+                        txq
                     )
-                    for index, (_, protocol, pep, driver) in enumerate(gdata)
+                    for index, (_, protocol, pep, txq) in enumerate(gdata)
                 ]
 
                 g.plot_data(plot_df, *plot_cmds)
