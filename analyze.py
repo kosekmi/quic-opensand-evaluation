@@ -189,7 +189,7 @@ def analyze_packet_loss(df: pd.DataFrame, out_dir="."):
                 plot_df = pd.concat([x[0] for x in gdata], axis=1)
                 # Generate gnuplot commands
                 plot_cmds = [
-                    "using 1:($%d/1000) with linespoints pointtype %d linecolor '%s' title '%s%s q=%d'" %
+                    "using 1:%d with linespoints pointtype %d linecolor '%s' title '%s%s q=%d'" %
                     (
                         index + 2,
                         get_point_type(point_map, queue),
