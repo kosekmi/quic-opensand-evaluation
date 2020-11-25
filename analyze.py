@@ -150,3 +150,55 @@ def analyze_cwnd_evo(df: pd.DataFrame, out_dir="."):
                 ]
 
                 g.plot_data(plot_df, *plot_cmds)
+
+
+def analyze_packet_loss(df: pd.DataFrame, out_dir="."):
+    # Ensures same point types and line colors across all graphs
+    point_map = {}
+    line_map = {}
+
+    # Generate graphs
+    for sat in df['delay'].unique():
+        for rate in df['rate'].unique():
+            for loss in df['loss'].unique():
+                g = gnuplot.Gnuplot(log=True)
+                g.set(title='"Packet loss - %s - %.0f Mbit/s - %.2f%%"' % (sat, rate, loss * 100),
+                      key='outside right center vertical',
+                      ylabel='"Packets lost"',
+                      xlabel='"Time (s)"',
+                      xrange='[0:30]',
+                      term='pdf size 18cm, 6cm',
+                      out='"%s"' % os.path.join(out_dir, "packet_loss_%s_r%s_l%.2f.pdf" % (sat, rate, loss * 100)),
+                      pointsize='0.5')
+
+                # Filter only data relevant for graph
+                gdf = df.loc[(df['delay'] == sat) & (df['rate'] == rate) & (df['loss'] == loss) & (df['second'] < 30)]
+                gdf = gdf[['protocol', 'pep', 'queue', 'second', 'packets_lost']]
+                # Calculate mean average per second over all runs
+                gdf = gdf.groupby(['protocol', 'pep', 'queue', 'second']).mean()
+
+                # Collect all variations of data
+                gdata = []
+                for protocol in df['protocol'].unique():
+                    for pep in df['pep'].unique():
+                        for queue in df['queue'].unique():
+                            gdata.append((gdf.loc[(protocol, pep, queue), 'packets_lost'], protocol, pep, queue))
+                gdata = sorted(gdata, key=lambda x: [x[1], x[2], x[3]])
+
+                # Merge data to single dataframe
+                plot_df = pd.concat([x[0] for x in gdata], axis=1)
+                # Generate gnuplot commands
+                plot_cmds = [
+                    "using 1:($%d/1000) with linespoints pointtype %d linecolor '%s' title '%s%s q=%d'" %
+                    (
+                        index + 2,
+                        get_point_type(point_map, queue),
+                        get_line_color(line_map, (protocol, pep)),
+                        protocol.upper(),
+                        (" (" + pep.upper() + ")") if pep != "none" else "",
+                        queue
+                    )
+                    for index, (_, protocol, pep, queue) in enumerate(gdata)
+                ]
+
+                g.plot_data(plot_df, *plot_cmds)

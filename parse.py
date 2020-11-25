@@ -87,7 +87,7 @@ def parse_quic_cwnd_evo(result_set_path):
     """
 
     logger.info("Parsing QUIC congestion window evolution from log files")
-    df = pd.DataFrame(columns=['run', 'second', 'cwnd'])
+    df = pd.DataFrame(columns=['run', 'second', 'cwnd', 'packets_lost'])
 
     for file_name in os.listdir(result_set_path):
         path = os.path.join(result_set_path, file_name)
@@ -102,14 +102,15 @@ def parse_quic_cwnd_evo(result_set_path):
         run = int(match.group(1))
         with open(path) as file:
             for line in file:
-                line_match = re.search(r"^connection.*second (\d+).*send window: (\d+)", line.strip())
+                line_match = re.search(r"^connection.*second (\d+).*send window: (\d+).*packets lost: (\d+)", line.strip())
                 if not line_match:
                     continue
 
                 df = df.append({
                     'run': run,
                     'second': int(line_match.group(1)),
-                    'cwnd': int(line_match.group(2))
+                    'cwnd': int(line_match.group(2)),
+                    'packets_lost': int(line_match.group(3))
                 }, ignore_index=True)
 
     return df
@@ -160,7 +161,7 @@ def parse_tcp_cwnd_evo(result_set_path):
     """
 
     logger.info("Parsing TCP congestion window evolution from log files")
-    df = pd.DataFrame(columns=['run', 'second', 'cwnd'])
+    df = pd.DataFrame(columns=['run', 'second', 'cwnd', 'packets_lost'])
 
     for file_name in os.listdir(result_set_path):
         path = os.path.join(result_set_path, file_name)
@@ -183,7 +184,8 @@ def parse_tcp_cwnd_evo(result_set_path):
             df = df.append({
                 'run': run,
                 'second': round(interval['sum']['start']),
-                'cwnd': int(interval['streams'][0]['snd_cwnd'])
+                'cwnd': int(interval['streams'][0]['snd_cwnd']),
+                'packets_lost': int(interval['streams'][0]['retransmits'])
             }, ignore_index=True)
 
     return df
@@ -243,7 +245,7 @@ def fix_column_dtypes(df):
     :return:
     """
 
-    numerics = {'rate', 'loss', 'queue', 'txq', 'run', 'second', 'bits', 'cwnd'}
+    numerics = {'rate', 'loss', 'queue', 'txq', 'run', 'second', 'bits', 'cwnd', 'packets_lost'}
     cols = df.columns.to_list()
     for col_name in numerics.intersection(cols):
         df[col_name] = pd.to_numeric(df[col_name])
@@ -254,7 +256,7 @@ def fix_column_dtypes(df):
 def parse(in_dir="~/measure"):
     logger.info("Parsing measurement results in '%s'", in_dir)
     df_goodput = pd.DataFrame(columns=['protocol', 'pep', 'delay', 'rate', 'loss', 'queue', 'txq', 'run', 'second', 'bits'])
-    df_cwnd_evo = pd.DataFrame(columns=['protocol', 'pep', 'delay', 'rate', 'loss', 'queue', 'txq', 'run', 'second', 'cwnd'])
+    df_cwnd_evo = pd.DataFrame(columns=['protocol', 'pep', 'delay', 'rate', 'loss', 'queue', 'txq', 'run', 'second', 'cwnd', 'packets_lost'])
 
     for folder_name, delay, rate, loss, queue, txq, pep in measure_folders(in_dir):
         logger.info("Parsing files in %s", folder_name)
@@ -314,6 +316,7 @@ def main(argv):
 
     analyze.analyze_goodput(df_goodput, out_dir=out_dir)
     analyze.analyze_cwnd_evo(df_cwnd_evo, out_dir=out_dir)
+    analyze.analyze_packet_loss(df_cwnd_evo, out_dir=out_dir)
 
 
 if __name__ == '__main__':
