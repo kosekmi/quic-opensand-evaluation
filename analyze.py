@@ -51,45 +51,45 @@ def analyze_goodput(df: pd.DataFrame, out_dir="."):
     # Generate graphs
     for sat in df['delay'].unique():
         for rate in df['rate'].unique():
-            for loss in df['loss'].unique():
+            for queue in df['queue'].unique():
                 g = gnuplot.Gnuplot(log=True)
-                g.set(title='"Goodput evolution - %s - %.0f Mbit/s - %.2f%%"' % (sat, rate, loss * 100),
+                g.set(title='"Goodput evolution - %s - %.0f Mbit/s - BDP*%d"' % (sat, rate, queue),
                       key='outside right center vertical',
                       ylabel='"Goodput (kbps)"',
                       xlabel='"Time (s)"',
                       xrange='[0:30]',
                       term='pdf size 18cm, 6cm',
-                      out='"%s"' % os.path.join(out_dir, "goodput_%s_r%s_l%.2f.pdf" % (sat, rate, loss * 100)),
+                      out='"%s"' % os.path.join(out_dir, "goodput_%s_r%s_q%d.pdf" % (sat, rate, queue)),
                       pointsize='0.5')
 
                 # Filter only data relevant for graph
-                gdf = df.loc[(df['delay'] == sat) & (df['rate'] == rate) & (df['loss'] == loss) & (df['second'] < 30)]
-                gdf = gdf[['protocol', 'pep', 'queue', 'second', 'bits']]
+                gdf = df.loc[(df['delay'] == sat) & (df['rate'] == rate) & (df['queue'] == queue) & (df['second'] < 30)]
+                gdf = gdf[['protocol', 'pep', 'loss', 'second', 'bits']]
                 # Calculate mean average per second over all runs
-                gdf = gdf.groupby(['protocol', 'pep', 'queue', 'second']).mean()
+                gdf = gdf.groupby(['protocol', 'pep', 'loss', 'second']).mean()
 
                 # Collect all variations of data
                 gdata = []
                 for protocol in df['protocol'].unique():
                     for pep in df['pep'].unique():
-                        for queue in df['queue'].unique():
-                            gdata.append((gdf.loc[(protocol, pep, queue), 'bits'], protocol, pep, queue))
+                        for loss in df['loss'].unique():
+                            gdata.append((gdf.loc[(protocol, pep, loss), 'bits'], protocol, pep, loss))
                 gdata = sorted(gdata, key=lambda x: [x[1], x[2], x[3]])
 
                 # Merge data to single dataframe
                 plot_df = pd.concat([x[0] for x in gdata], axis=1)
                 # Generate gnuplot commands
                 plot_cmds = [
-                    "using 1:($%d/1000) with linespoints pointtype %d linecolor '%s' title '%s%s q=%d'" %
+                    "using 1:($%d/1000) with linespoints pointtype %d linecolor '%s' title '%s%s l=%.2f%%'" %
                     (
                         index + 2,
-                        get_point_type(point_map, queue),
+                        get_point_type(point_map, loss),
                         get_line_color(line_map, (protocol, pep)),
                         protocol.upper(),
                         (" (" + pep.upper() + ")") if pep != "none" else "",
-                        queue
+                        loss * 100
                     )
-                    for index, (_, protocol, pep, queue) in enumerate(gdata)
+                    for index, (_, protocol, pep, loss) in enumerate(gdata)
                 ]
 
                 g.plot_data(plot_df, *plot_cmds)
@@ -108,45 +108,45 @@ def analyze_cwnd_evo(df: pd.DataFrame, out_dir="."):
     # Generate graphs
     for sat in df['delay'].unique():
         for rate in df['rate'].unique():
-            for loss in df['loss'].unique():
+            for queue in df['queue'].unique():
                 g = gnuplot.Gnuplot(log=True)
-                g.set(title='"Congestion window evolution - %s - %.0f Mbit/s - %.2f%%"' % (sat, rate, loss * 100),
+                g.set(title='"Congestion window evolution - %s - %.0f Mbit/s - BDP*%d"' % (sat, rate, queue),
                       key='outside right center vertical',
                       ylabel='"Congestion window (KB)"',
                       xlabel='"Time (s)"',
                       xrange='[0:30]',
                       term='pdf size 18cm, 6cm',
-                      out='"%s"' % os.path.join(out_dir, "cwnd_evo_%s_r%s_l%.2f.pdf" % (sat, rate, loss * 100)),
+                      out='"%s"' % os.path.join(out_dir, "cwnd_evo_%s_r%s_q%d.pdf" % (sat, rate, queue)),
                       pointsize='0.5')
 
                 # Filter only data relevant for graph
-                gdf = df.loc[(df['delay'] == sat) & (df['rate'] == rate) & (df['loss'] == loss) & (df['second'] < 30)]
-                gdf = gdf[['protocol', 'pep', 'queue', 'second', 'cwnd']]
+                gdf = df.loc[(df['delay'] == sat) & (df['rate'] == rate) & (df['queue'] == queue) & (df['second'] < 30)]
+                gdf = gdf[['protocol', 'pep', 'loss', 'second', 'cwnd']]
                 # Calculate mean average per second over all runs
-                gdf = gdf.groupby(['protocol', 'pep', 'queue', 'second']).mean()
+                gdf = gdf.groupby(['protocol', 'pep', 'loss', 'second']).mean()
 
                 # Collect all variations of data
                 gdata = []
                 for protocol in df['protocol'].unique():
                     for pep in df['pep'].unique():
-                        for queue in df['queue'].unique():
-                            gdata.append((gdf.loc[(protocol, pep, queue), 'cwnd'], protocol, pep, queue))
+                        for loss in df['loss'].unique():
+                            gdata.append((gdf.loc[(protocol, pep, loss), 'cwnd'], protocol, pep, loss))
                 gdata = sorted(gdata, key=lambda x: [x[1], x[2], x[3]])
 
                 # Merge data to single dataframe
                 plot_df = pd.concat([x[0] for x in gdata], axis=1)
                 # Generate gnuplot commands
                 plot_cmds = [
-                    "using 1:($%d/1000) with linespoints pointtype %d linecolor '%s' title '%s%s q=%d'" %
+                    "using 1:($%d/1000) with linespoints pointtype %d linecolor '%s' title '%s%s l=%.2f%%'" %
                     (
                         index + 2,
-                        get_point_type(point_map, queue),
+                        get_point_type(point_map, loss),
                         get_line_color(line_map, (protocol, pep)),
                         protocol.upper(),
                         (" (" + pep.upper() + ")") if pep != "none" else "",
-                        queue
+                        loss * 100
                     )
-                    for index, (_, protocol, pep, queue) in enumerate(gdata)
+                    for index, (_, protocol, pep, loss) in enumerate(gdata)
                 ]
 
                 g.plot_data(plot_df, *plot_cmds)
@@ -160,45 +160,45 @@ def analyze_packet_loss(df: pd.DataFrame, out_dir="."):
     # Generate graphs
     for sat in df['delay'].unique():
         for rate in df['rate'].unique():
-            for loss in df['loss'].unique():
+            for queue in df['queue'].unique():
                 g = gnuplot.Gnuplot(log=True)
-                g.set(title='"Packet loss - %s - %.0f Mbit/s - %.2f%%"' % (sat, rate, loss * 100),
+                g.set(title='"Packet loss - %s - %.0f Mbit/s - BDP*%d"' % (sat, rate, queue),
                       key='outside right center vertical',
                       ylabel='"Packets lost"',
                       xlabel='"Time (s)"',
                       xrange='[0:30]',
                       term='pdf size 18cm, 6cm',
-                      out='"%s"' % os.path.join(out_dir, "packet_loss_%s_r%s_l%.2f.pdf" % (sat, rate, loss * 100)),
+                      out='"%s"' % os.path.join(out_dir, "packet_loss_%s_r%s_q%d.pdf" % (sat, rate, queue)),
                       pointsize='0.5')
 
                 # Filter only data relevant for graph
-                gdf = df.loc[(df['delay'] == sat) & (df['rate'] == rate) & (df['loss'] == loss) & (df['second'] < 30)]
-                gdf = gdf[['protocol', 'pep', 'queue', 'second', 'packets_lost']]
+                gdf = df.loc[(df['delay'] == sat) & (df['rate'] == rate) & (df['queue'] == queue) & (df['second'] < 30)]
+                gdf = gdf[['protocol', 'pep', 'loss', 'second', 'packets_lost']]
                 # Calculate mean average per second over all runs
-                gdf = gdf.groupby(['protocol', 'pep', 'queue', 'second']).mean()
+                gdf = gdf.groupby(['protocol', 'pep', 'loss', 'second']).mean()
 
                 # Collect all variations of data
                 gdata = []
                 for protocol in df['protocol'].unique():
                     for pep in df['pep'].unique():
-                        for queue in df['queue'].unique():
-                            gdata.append((gdf.loc[(protocol, pep, queue), 'packets_lost'], protocol, pep, queue))
+                        for loss in df['loss'].unique():
+                            gdata.append((gdf.loc[(protocol, pep, loss), 'packets_lost'], protocol, pep, loss))
                 gdata = sorted(gdata, key=lambda x: [x[1], x[2], x[3]])
 
                 # Merge data to single dataframe
                 plot_df = pd.concat([x[0] for x in gdata], axis=1)
                 # Generate gnuplot commands
                 plot_cmds = [
-                    "using 1:%d with linespoints pointtype %d linecolor '%s' title '%s%s q=%d'" %
+                    "using 1:%d with linespoints pointtype %d linecolor '%s' title '%s%s l=%.2f%%'" %
                     (
                         index + 2,
-                        get_point_type(point_map, queue),
+                        get_point_type(point_map, loss),
                         get_line_color(line_map, (protocol, pep)),
                         protocol.upper(),
                         (" (" + pep.upper() + ")") if pep != "none" else "",
-                        queue
+                        loss * 100
                     )
-                    for index, (_, protocol, pep, queue) in enumerate(gdata)
+                    for index, (_, protocol, pep, loss) in enumerate(gdata)
                 ]
 
                 g.plot_data(plot_df, *plot_cmds)
