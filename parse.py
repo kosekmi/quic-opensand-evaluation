@@ -199,7 +199,7 @@ def measure_folders(root_folder):
             continue
 
         match = re.search(
-            r"^(GEO|MEO|LEO)_r(\d+)mbit_l(\d+(?:\.\d+)?)_q(\d+(?:\.\d+)?)(?:_txq(\d+))?(?:_([a-z]+))?$",
+            r"^(GEO|MEO|LEO|NONE)_r(\d+)mbit_l(\d+(?:\.\d+)?)_q(\d+(?:\.\d+)?)(?:_txq(\d+))?(?:_([a-z]+))?$",
             folder_name)
         if not match:
             logger.info("Directory '%s' doesn't match, skipping", folder_name)
