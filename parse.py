@@ -69,7 +69,7 @@ def parse_quic_client(result_set_path):
     :return:
     """
 
-    logger.info("Parsing QUIC client from log files")
+    logger.info("Parsing QUIC client log files")
     df = pd.DataFrame(columns=['run', 'second', 'bps', 'bytes'])
 
     for file_name in os.listdir(result_set_path):
@@ -97,6 +97,9 @@ def parse_quic_client(result_set_path):
                     'bytes': int(line_match.group(4))
                 }, ignore_index=True)
 
+    if df.empty:
+        logger.warning("No QUIC client data found")
+
     return df
 
 
@@ -107,7 +110,7 @@ def parse_quic_server(result_set_path):
     :return:
     """
 
-    logger.info("Parsing QUIC congestion window evolution from log files")
+    logger.info("Parsing QUIC server log files")
     df = pd.DataFrame(columns=['run', 'second', 'cwnd', 'packets_sent', 'packets_lost'])
 
     for file_name in os.listdir(result_set_path):
@@ -137,6 +140,9 @@ def parse_quic_server(result_set_path):
                     'packets_lost': int(line_match.group(4))
                 }, ignore_index=True)
 
+    if df.empty:
+        logger.warning("No QUIC server data found")
+
     return df
 
 
@@ -147,7 +153,7 @@ def parse_tcp_client(result_set_path):
     :return:
     """
 
-    logger.info("Parsing TCP goodput from log files")
+    logger.info("Parsing TCP client log files")
     df = pd.DataFrame(columns=['run', 'second', 'bps', 'bytes', 'omitted'])
 
     for file_name in os.listdir(result_set_path):
@@ -176,6 +182,9 @@ def parse_tcp_client(result_set_path):
                 'omitted': bool(interval['streams'][0]['omitted']),
             }, ignore_index=True)
 
+    if df.empty:
+        logger.warning("No TCP client data found")
+
     return df
 
 
@@ -186,7 +195,7 @@ def parse_tcp_server(result_set_path):
     :return:
     """
 
-    logger.info("Parsing TCP congestion window evolution from log files")
+    logger.info("Parsing TCP server log files")
     df = pd.DataFrame(columns=['run', 'second', 'cwnd', 'bps', 'bytes', 'packets_lost', 'rtt', 'omitted'])
 
     for file_name in os.listdir(result_set_path):
@@ -218,7 +227,36 @@ def parse_tcp_server(result_set_path):
                 'omitted': bool(interval['streams'][0]['omitted']),
             }, ignore_index=True)
 
+    if df.empty:
+        logger.warning("No TCP server data found")
+
     return df
+
+
+def parse_ping(result_set_path):
+    logger.info("Parsing ping log files")
+
+    path = os.path.join(result_set_path, "ping.txt")
+    if not os.path.isfile(path):
+        logger.warning("No ping data found")
+        return None
+
+    data = {}
+    with open(path) as file:
+        for line in file.readlines()[-2:]:
+            match = re.search(r"^(\d+) packets transmitted, (\d+) received", line)
+            if match:
+                data['packets_sent'] = int(match.group(1))
+                data['packets_received'] = int(match.group(2))
+            else:
+                match = re.search(r"= (\d+(?:\.\d+)?)/(\d+(?:\.\d+)?)/(\d+(?:\.\d+)?)/(\d+(?:\.\d+)?) ms", line)
+                if match:
+                    data['rtt_min'] = float(match.group(1))
+                    data['rtt_avg'] = float(match.group(2))
+                    data['rtt_max'] = float(match.group(3))
+                    data['rtt_mdev'] = float(match.group(4))
+
+    return pd.DataFrame({k: [v] for k, v in data.items()})
 
 
 def measure_folders(root_folder):
@@ -276,8 +314,8 @@ def fix_column_dtypes(df):
     :return:
     """
 
-    numerics = {'rate', 'loss', 'queue', 'txq', 'run', 'second', 'bytes', 'cwnd', 'packets_lost', 'packets_sent',
-                'bps', 'rtt'}
+    numerics = {'rate', 'loss', 'queue', 'txq', 'run', 'second', 'bytes', 'cwnd', 'packets_sent', 'packets_received',
+                'packets_lost', 'measured_loss', 'bps', 'rtt', 'rtt_min', 'rtt_avg', 'rtt_max', 'rtt_mdev'}
     cols = df.columns.to_list()
     for col_name in numerics.intersection(cols):
         df[col_name] = pd.to_numeric(df[col_name])
@@ -295,6 +333,8 @@ def parse(in_dir="~/measure"):
                                           'run', 'second', 'bps', 'bytes', 'omitted'])
     df_tcp_server = pd.DataFrame(columns=['protocol', 'pep', 'sat', 'rate', 'loss', 'queue', 'txq',
                                           'run', 'second', 'cwnd', 'bps', 'bytes', 'packets_lost', 'rtt', 'omitted'])
+    df_ping = pd.DataFrame(columns=['protocol', 'pep', 'sat', 'rate', 'loss', 'queue', 'txq',
+                                    'packets_sent', 'packets_received', 'rtt_min', 'rtt_avg', 'rtt_max', 'rtt_mdev'])
 
     for folder_name, sat, rate, loss, queue, txq, pep in measure_folders(in_dir):
         logger.info("Parsing files in %s", folder_name)
@@ -320,18 +360,25 @@ def parse(in_dir="~/measure"):
         df = extend_df(df, 'tcp', pep, sat, rate, loss, queue, txq)
         df_tcp_server = df_tcp_server.append(df, ignore_index=True)
 
+        # Ping
+        df = parse_ping(path)
+        df = extend_df(df, 'icmp', pep, sat, rate, loss, queue, txq)
+        df_ping = df_ping.append(df, ignore_index=True)
+
     # Fix data types
     logger.info("Fixing data types")
     fix_column_dtypes(df_quic_client)
     fix_column_dtypes(df_quic_server)
     fix_column_dtypes(df_tcp_client)
     fix_column_dtypes(df_tcp_server)
+    fix_column_dtypes(df_ping)
 
     return {
         'quic_client': df_quic_client,
         'quic_server': df_quic_server,
         'tcp_client': df_tcp_client,
-        'tcp_server': df_tcp_server
+        'tcp_server': df_tcp_server,
+        'ping': df_ping
     }
 
 
