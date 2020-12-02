@@ -85,7 +85,7 @@ def parse_quic_client(result_set_path):
         run = int(match.group(1))
         with open(path) as file:
             for line in file:
-                line_match = re.search(r"^second (\d+):.*(\d+(?:\.\d+)?) ([a-z]?)bit/s.*(\d+) bytes received.*(\d+) packets received",
+                line_match = re.search(r"^second (\d+): (\d+(?:\.\d+)?) ([a-z]?)bit/s \((\d+) bytes received, (\d+) packets received\)$",
                                        line.strip())
                 if not line_match:
                     continue
@@ -128,7 +128,7 @@ def parse_quic_server(result_set_path):
         with open(path) as file:
             for line in file:
                 line_match = re.search(
-                    r"^connection.*second (\d+).*send window: (\d+).*packets sent: (\d+).*packets lost: (\d+)",
+                    r"^connection.*second (\d+) send window: (\d+) packets sent: (\d+) packets lost: (\d+)$",
                     line.strip())
                 if not line_match:
                     continue
