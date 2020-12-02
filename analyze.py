@@ -55,19 +55,28 @@ def analyze_goodput(df: pd.DataFrame, out_dir: str):
     for sat in df['sat'].unique():
         for rate in df['rate'].unique():
             for queue in df['queue'].unique():
-                g = gnuplot.Gnuplot(log=True)
-                g.set(title='"Goodput evolution - %s - %.0f Mbit/s - BDP*%d"' % (sat, rate, queue),
-                      key='outside right center vertical',
-                      ylabel='"Goodput (kbps)"',
-                      xlabel='"Time (s)"',
-                      xrange='[0:30]',
-                      term='pdf size 18cm, 6cm',
-                      out='"%s"' % os.path.join(out_dir, "goodput_%s_r%s_q%d.pdf" % (sat, rate, queue)),
-                      pointsize='0.5')
+                g_kbps = gnuplot.Gnuplot(log=True)
+                g_kbps.set(title='"Goodput evolution - %s - %.0f Mbit/s - BDP*%d"' % (sat, rate, queue),
+                           key='outside right center vertical',
+                           ylabel='"Goodput (kbps)"',
+                           xlabel='"Time (s)"',
+                           xrange='[0:30]',
+                           term='pdf size 18cm, 6cm',
+                           out='"%s"' % os.path.join(out_dir, "goodput_kbps_%s_r%s_q%d.pdf" % (sat, rate, queue)),
+                           pointsize='0.5')
+                g_kbyte = gnuplot.Gnuplot(log=True)
+                g_kbyte.set(title='"Goodput evolution - %s - %.0f Mbit/s - BDP*%d"' % (sat, rate, queue),
+                            key='outside right center vertical',
+                            ylabel='"Goodput (KBytes)"',
+                            xlabel='"Time (s)"',
+                            xrange='[0:30]',
+                            term='pdf size 18cm, 6cm',
+                            out='"%s"' % os.path.join(out_dir, "goodput_kbyte_%s_r%s_q%d.pdf" % (sat, rate, queue)),
+                            pointsize='0.5')
 
                 # Filter only data relevant for graph
                 gdf = df.loc[(df['sat'] == sat) & (df['rate'] == rate) & (df['queue'] == queue) & (df['second'] < 30)]
-                gdf = gdf[['protocol', 'pep', 'loss', 'second', 'bps']]
+                gdf = gdf[['protocol', 'pep', 'loss', 'second', 'bps', 'bytes']]
                 # Calculate mean average per second over all runs
                 gdf = gdf.groupby(['protocol', 'pep', 'loss', 'second']).mean()
 
@@ -76,11 +85,18 @@ def analyze_goodput(df: pd.DataFrame, out_dir: str):
                 for protocol in df['protocol'].unique():
                     for pep in df['pep'].unique():
                         for loss in df['loss'].unique():
-                            gdata.append((gdf.loc[(protocol, pep, loss), 'bps'], protocol, pep, loss))
-                gdata = sorted(gdata, key=lambda x: [x[1], x[2], x[3]])
+                            gdata.append((
+                                gdf.loc[(protocol, pep, loss), 'bps'],
+                                gdf.loc[(protocol, pep, loss), 'bytes'],
+                                protocol,
+                                pep,
+                                loss
+                            ))
+                gdata = sorted(gdata, key=lambda x: [x[2], x[3], x[4]])
 
                 # Merge data to single dataframe
-                plot_df = pd.concat([x[0] for x in gdata], axis=1)
+                plot_df_kbps = pd.concat([x[0] for x in gdata], axis=1)
+                plot_df_kbyte = pd.concat([x[1] for x in gdata], axis=1)
                 # Generate gnuplot commands
                 plot_cmds = [
                     "using 1:($%d/1000) with linespoints pointtype %d linecolor '%s' title '%s%s l=%.2f%%'" %
@@ -92,10 +108,11 @@ def analyze_goodput(df: pd.DataFrame, out_dir: str):
                         (" (" + pep.upper() + ")") if pep != "none" else "",
                         loss * 100
                     )
-                    for index, (_, protocol, pep, loss) in enumerate(gdata)
+                    for index, (_, _, protocol, pep, loss) in enumerate(gdata)
                 ]
 
-                g.plot_data(plot_df, *plot_cmds)
+                g_kbps.plot_data(plot_df_kbps, *plot_cmds)
+                g_kbyte.plot_data(plot_df_kbyte, *plot_cmds)
 
 
 def analyze_cwnd_evo(df: pd.DataFrame, out_dir: str):
@@ -203,9 +220,6 @@ def analyze_packet_loss(df: pd.DataFrame, out_dir: str):
 
 
 def analyze_all(parsed_results: dict, out_dir="."):
-    for k in parsed_results:
-        print(k, type(parsed_results[k]), parsed_results[k].dtypes)
-
     logger.info("Analyzing goodput")
     goodput_cols = ['protocol', 'pep', 'sat', 'rate', 'loss', 'queue', 'txq', 'run', 'second', 'bps', 'bytes']
     df_goodput = pd.concat([

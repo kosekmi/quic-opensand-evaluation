@@ -70,7 +70,7 @@ def parse_quic_client(result_set_path):
     """
 
     logger.info("Parsing QUIC client log files")
-    df = pd.DataFrame(columns=['run', 'second', 'bps', 'bytes'])
+    df = pd.DataFrame(columns=['run', 'second', 'bps', 'bytes', 'packets_received'])
 
     for file_name in os.listdir(result_set_path):
         path = os.path.join(result_set_path, file_name)
@@ -85,7 +85,7 @@ def parse_quic_client(result_set_path):
         run = int(match.group(1))
         with open(path) as file:
             for line in file:
-                line_match = re.search(r"^second (\d+):.*(\d+(?:\.\d+)?) ([a-z]?)bit/s.*\((\d+) bytes received\)",
+                line_match = re.search(r"^second (\d+):.*(\d+(?:\.\d+)?) ([a-z]?)bit/s.*(\d+) bytes received.*(\d+) packets received",
                                        line.strip())
                 if not line_match:
                     continue
@@ -94,7 +94,8 @@ def parse_quic_client(result_set_path):
                     'run': run,
                     'second': int(line_match.group(1)),
                     'bps': int(float(line_match.group(2)) * bps_factor(line_match.group(3))),
-                    'bytes': int(line_match.group(4))
+                    'bytes': int(line_match.group(4)),
+                    'packets_received': int(line_match.group(5))
                 }, ignore_index=True)
 
     if df.empty:
@@ -326,7 +327,7 @@ def fix_column_dtypes(df):
 def parse(in_dir="~/measure"):
     logger.info("Parsing measurement results in '%s'", in_dir)
     df_quic_client = pd.DataFrame(columns=['protocol', 'pep', 'sat', 'rate', 'loss', 'queue', 'txq',
-                                           'run', 'second', 'bps', 'bytes'])
+                                           'run', 'second', 'bps', 'bytes', 'packets_received'])
     df_quic_server = pd.DataFrame(columns=['protocol', 'pep', 'sat', 'rate', 'loss', 'queue', 'txq',
                                            'run', 'second', 'cwnd', 'packets_sent', 'packets_lost'])
     df_tcp_client = pd.DataFrame(columns=['protocol', 'pep', 'sat', 'rate', 'loss', 'queue', 'txq',
@@ -342,28 +343,43 @@ def parse(in_dir="~/measure"):
 
         # QUIC client
         df = parse_quic_client(path)
-        df = extend_df(df, 'quic', pep, sat, rate, loss, queue, txq)
-        df_quic_client = df_quic_client.append(df, ignore_index=True)
+        if df is not None:
+            df = extend_df(df, 'quic', pep, sat, rate, loss, queue, txq)
+            df_quic_client = df_quic_client.append(df, ignore_index=True)
+        else:
+            logger.warning("No data QUIC client data in %s" % folder_name)
 
         # QUIC server
         df = parse_quic_server(path)
-        df = extend_df(df, 'quic', pep, sat, rate, loss, queue, txq)
-        df_quic_server = df_quic_server.append(df, ignore_index=True)
+        if df is not None:
+            df = extend_df(df, 'quic', pep, sat, rate, loss, queue, txq)
+            df_quic_server = df_quic_server.append(df, ignore_index=True)
+        else:
+            logger.warning("No data QUIC server data in %s" % folder_name)
 
         # TCP client
         df = parse_tcp_client(path)
-        df = extend_df(df, 'tcp', pep, sat, rate, loss, queue, txq)
-        df_tcp_client = df_tcp_client.append(df, ignore_index=True)
+        if df is not None:
+            df = extend_df(df, 'tcp', pep, sat, rate, loss, queue, txq)
+            df_tcp_client = df_tcp_client.append(df, ignore_index=True)
+        else:
+            logger.warning("No data TCP client data in %s" % folder_name)
 
         # TCP server
         df = parse_tcp_server(path)
-        df = extend_df(df, 'tcp', pep, sat, rate, loss, queue, txq)
-        df_tcp_server = df_tcp_server.append(df, ignore_index=True)
+        if df is not None:
+            df = extend_df(df, 'tcp', pep, sat, rate, loss, queue, txq)
+            df_tcp_server = df_tcp_server.append(df, ignore_index=True)
+        else:
+            logger.warning("No data TCP server data in %s" % folder_name)
 
         # Ping
         df = parse_ping(path)
-        df = extend_df(df, 'icmp', pep, sat, rate, loss, queue, txq)
-        df_ping = df_ping.append(df, ignore_index=True)
+        if df is not None:
+            df = extend_df(df, 'icmp', pep, sat, rate, loss, queue, txq)
+            df_ping = df_ping.append(df, ignore_index=True)
+        else:
+            logger.warning("No data ping data in %s" % folder_name)
 
     # Fix data types
     logger.info("Fixing data types")
