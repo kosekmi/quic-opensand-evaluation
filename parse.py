@@ -57,7 +57,7 @@ def load_json_file(path: str):
 
 
 def bps_factor(prefix: str):
-    factor = {'K': 1e3, 'M': 1e6, 'G': 1e9, 'T': 1e12, 'P': 1e15, 'E': 1e18, 'Z': 1e21, 'Y': 1e24}
+    factor = {'K': 2**10, 'M': 2**20, 'G': 2**30, 'T': 2**40, 'P': 2**50, 'E': 2*60, 'Z': 2*70, 'Y': 2*80}
     prefix = prefix.upper()
     return factor[prefix] if prefix in factor else 1
 
