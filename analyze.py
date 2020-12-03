@@ -5,7 +5,7 @@ import logging
 from pygnuplot import gnuplot
 
 LINE_COLORS = ['black', 'red', 'dark-violet', 'blue', 'olive', 'dark-orange']
-POINT_TYPES = [2, 4, 8, 10, 12, 6]
+POINT_TYPES = [2, 4, 8, 10, 6, 12]
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -55,24 +55,24 @@ def analyze_goodput(df: pd.DataFrame, out_dir: str):
     for sat in df['sat'].unique():
         for rate in df['rate'].unique():
             for queue in df['queue'].unique():
-                g_kbps = gnuplot.Gnuplot(log=True)
-                g_kbps.set(title='"Goodput evolution - %s - %.0f Mbit/s - BDP*%d"' % (sat, rate, queue),
-                           key='outside right center vertical',
-                           ylabel='"Goodput (kbps)"',
-                           xlabel='"Time (s)"',
-                           xrange='[0:30]',
-                           term='pdf size 18cm, 6cm',
-                           out='"%s"' % os.path.join(out_dir, "goodput_kbps_%s_r%s_q%d.pdf" % (sat, rate, queue)),
-                           pointsize='0.5')
-                g_kbyte = gnuplot.Gnuplot(log=True)
-                g_kbyte.set(title='"Goodput evolution - %s - %.0f Mbit/s - BDP*%d"' % (sat, rate, queue),
-                            key='outside right center vertical',
-                            ylabel='"Goodput (KBytes)"',
-                            xlabel='"Time (s)"',
-                            xrange='[0:30]',
-                            term='pdf size 18cm, 6cm',
-                            out='"%s"' % os.path.join(out_dir, "goodput_kbyte_%s_r%s_q%d.pdf" % (sat, rate, queue)),
-                            pointsize='0.5')
+                g = gnuplot.Gnuplot(log=True)
+                g.set(title='"Goodput evolution - %s - %.0f Mbit/s - BDP*%d"' % (sat, rate, queue),
+                      key='outside right center vertical',
+                      ylabel='"Goodput (kbps)"',
+                      xlabel='"Time (s)"',
+                      xrange='[0:30]',
+                      term='pdf size 12cm, 6cm',
+                      out='"%s"' % os.path.join(out_dir, "goodput_%s_r%s_q%d.pdf" % (sat, rate, queue)),
+                      pointsize='0.5')
+                g_bps = gnuplot.Gnuplot(log=True)
+                g_bps.set(title='"Goodput evolution - %s - %.0f Mbit/s - BDP*%d"' % (sat, rate, queue),
+                          key='outside right center vertical',
+                          ylabel='"Goodput (kbps)"',
+                          xlabel='"Time (s)"',
+                          xrange='[0:30]',
+                          term='pdf size 12cm, 6cm',
+                          out='"%s"' % os.path.join(out_dir, "goodput_from_bps_%s_r%s_q%d.pdf" % (sat, rate, queue)),
+                          pointsize='0.5')
 
                 # Filter only data relevant for graph
                 gdf = df.loc[(df['sat'] == sat) & (df['rate'] == rate) & (df['queue'] == queue) & (df['second'] < 30)]
@@ -86,8 +86,8 @@ def analyze_goodput(df: pd.DataFrame, out_dir: str):
                     for pep in df['pep'].unique():
                         for loss in df['loss'].unique():
                             gdata.append((
-                                gdf.loc[(protocol, pep, loss), 'bps'],
                                 gdf.loc[(protocol, pep, loss), 'bytes'],
+                                gdf.loc[(protocol, pep, loss), 'bps'],
                                 protocol,
                                 pep,
                                 loss
@@ -95,8 +95,8 @@ def analyze_goodput(df: pd.DataFrame, out_dir: str):
                 gdata = sorted(gdata, key=lambda x: [x[2], x[3], x[4]])
 
                 # Merge data to single dataframe
-                plot_df_kbps = pd.concat([x[0] for x in gdata], axis=1)
-                plot_df_kbyte = pd.concat([x[1] for x in gdata], axis=1)
+                plot_df = pd.concat([x[0] for x in gdata], axis=1)
+                plot_df_bps = pd.concat([x[1] for x in gdata], axis=1)
                 # Generate gnuplot commands
                 plot_cmds = [
                     "using 1:($%d/1000) with linespoints pointtype %d linecolor '%s' title '%s%s l=%.2f%%'" %
@@ -111,8 +111,8 @@ def analyze_goodput(df: pd.DataFrame, out_dir: str):
                     for index, (_, _, protocol, pep, loss) in enumerate(gdata)
                 ]
 
-                g_kbps.plot_data(plot_df_kbps, *plot_cmds)
-                g_kbyte.plot_data(plot_df_kbyte, *plot_cmds)
+                g.plot_data(plot_df, *plot_cmds)
+                g_bps.plot_data(plot_df_bps, *plot_cmds)
 
 
 def analyze_cwnd_evo(df: pd.DataFrame, out_dir: str):
@@ -130,7 +130,7 @@ def analyze_cwnd_evo(df: pd.DataFrame, out_dir: str):
                       ylabel='"Congestion window (KB)"',
                       xlabel='"Time (s)"',
                       xrange='[0:30]',
-                      term='pdf size 18cm, 6cm',
+                      term='pdf size 12cm, 6cm',
                       out='"%s"' % os.path.join(out_dir, "cwnd_evo_%s_r%s_q%d.pdf" % (sat, rate, queue)),
                       pointsize='0.5')
 
@@ -182,7 +182,7 @@ def analyze_packet_loss(df: pd.DataFrame, out_dir: str):
                       ylabel='"Packets lost"',
                       xlabel='"Time (s)"',
                       xrange='[0:30]',
-                      term='pdf size 18cm, 6cm',
+                      term='pdf size 12cm, 6cm',
                       out='"%s"' % os.path.join(out_dir, "packet_loss_%s_r%s_q%d.pdf" % (sat, rate, queue)),
                       pointsize='0.5')
 
