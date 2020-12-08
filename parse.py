@@ -242,22 +242,34 @@ def parse_ping(result_set_path):
         logger.warning("No ping data found")
         return None
 
-    data = {}
+    raw_data = []
+    summary_data = {}
     with open(path) as file:
-        for line in file.readlines()[-2:]:
-            match = re.search(r"^(\d+) packets transmitted, (\d+) received", line)
+        for line in file:
+            match = re.match(r"^\d+ bytes from .*: icmp_seq=(\d+) ttl=(\d+) time=(\d+) ms", line)
             if match:
-                data['packets_sent'] = int(match.group(1))
-                data['packets_received'] = int(match.group(2))
+                raw_data.append({
+                    'seq': match.group(1),
+                    'ttl': match.group(2),
+                    'rtt': match.group(3)
+                })
             else:
-                match = re.search(r"= (\d+(?:\.\d+)?)/(\d+(?:\.\d+)?)/(\d+(?:\.\d+)?)/(\d+(?:\.\d+)?) ms", line)
+                match = re.search(r"^(\d+) packets transmitted, (\d+) received", line)
                 if match:
-                    data['rtt_min'] = float(match.group(1))
-                    data['rtt_avg'] = float(match.group(2))
-                    data['rtt_max'] = float(match.group(3))
-                    data['rtt_mdev'] = float(match.group(4))
+                    summary_data['packets_sent'] = int(match.group(1))
+                    summary_data['packets_received'] = int(match.group(2))
+                else:
+                    match = re.search(r"= (\d+(?:\.\d+)?)/(\d+(?:\.\d+)?)/(\d+(?:\.\d+)?)/(\d+(?:\.\d+)?) ms", line)
+                    if match:
+                        summary_data['rtt_min'] = float(match.group(1))
+                        summary_data['rtt_avg'] = float(match.group(2))
+                        summary_data['rtt_max'] = float(match.group(3))
+                        summary_data['rtt_mdev'] = float(match.group(4))
 
-    return pd.DataFrame({k: [v] for k, v in data.items()})
+    raw_df = pd.DataFrame(raw_data)
+    summary_df = pd.DataFrame({k: [v] for k, v in summary_data.items()})
+
+    return raw_df, summary_df
 
 
 def measure_folders(root_folder):
@@ -316,7 +328,8 @@ def fix_column_dtypes(df):
     """
 
     numerics = {'rate', 'loss', 'queue', 'txq', 'run', 'second', 'bytes', 'cwnd', 'packets_sent', 'packets_received',
-                'packets_lost', 'measured_loss', 'bps', 'rtt', 'rtt_min', 'rtt_avg', 'rtt_max', 'rtt_mdev'}
+                'packets_lost', 'measured_loss', 'bps', 'rtt', 'rtt_min', 'rtt_avg', 'rtt_max', 'rtt_mdev', 'ttl',
+                'seq'}
     cols = df.columns.to_list()
     for col_name in numerics.intersection(cols):
         df[col_name] = pd.to_numeric(df[col_name])
@@ -334,8 +347,11 @@ def parse(in_dir="~/measure"):
                                           'run', 'second', 'bps', 'bytes', 'omitted'])
     df_tcp_server = pd.DataFrame(columns=['protocol', 'pep', 'sat', 'rate', 'loss', 'queue', 'txq',
                                           'run', 'second', 'cwnd', 'bps', 'bytes', 'packets_lost', 'rtt', 'omitted'])
-    df_ping = pd.DataFrame(columns=['protocol', 'pep', 'sat', 'rate', 'loss', 'queue', 'txq',
-                                    'packets_sent', 'packets_received', 'rtt_min', 'rtt_avg', 'rtt_max', 'rtt_mdev'])
+    df_ping_raw = pd.DataFrame(columns=['protocol', 'pep', 'sat', 'rate', 'loss', 'queue', 'txq',
+                                        'seq', 'ttl', 'rtt'])
+    df_ping_summary = pd.DataFrame(columns=['protocol', 'pep', 'sat', 'rate', 'loss', 'queue', 'txq',
+                                            'packets_sent', 'packets_received', 'rtt_min', 'rtt_avg', 'rtt_max',
+                                            'rtt_mdev'])
 
     for folder_name, sat, rate, loss, queue, txq, pep in measure_folders(in_dir):
         logger.info("Parsing files in %s", folder_name)
@@ -374,10 +390,11 @@ def parse(in_dir="~/measure"):
             logger.warning("No data TCP server data in %s" % folder_name)
 
         # Ping
-        df = parse_ping(path)
-        if df is not None:
-            df = extend_df(df, 'icmp', pep, sat, rate, loss, queue, txq)
-            df_ping = df_ping.append(df, ignore_index=True)
+        dfs = parse_ping(path)
+        if dfs is not None:
+            dfs = [extend_df(df, 'icmp', pep, sat, rate, loss, queue, txq) for df in dfs]
+            df_ping_raw = df_ping_raw.append(dfs[0], ignore_index=True)
+            df_ping_summary = df_ping_summary.append(dfs[1], ignore_index=True)
         else:
             logger.warning("No data ping data in %s" % folder_name)
 
@@ -387,14 +404,16 @@ def parse(in_dir="~/measure"):
     fix_column_dtypes(df_quic_server)
     fix_column_dtypes(df_tcp_client)
     fix_column_dtypes(df_tcp_server)
-    fix_column_dtypes(df_ping)
+    fix_column_dtypes(df_ping_raw)
+    fix_column_dtypes(df_ping_summary)
 
     return {
         'quic_client': df_quic_client,
         'quic_server': df_quic_server,
         'tcp_client': df_tcp_client,
         'tcp_server': df_tcp_server,
-        'ping': df_ping
+        'ping_raw': df_ping_raw,
+        'ping_summary': df_ping_summary
     }
 
 

@@ -1,10 +1,11 @@
 import pandas as pd
+import numpy as np
 import os
 import sys
 import logging
 from pygnuplot import gnuplot
 
-LINE_COLORS = ['black', 'red', 'dark-violet', 'blue', 'olive', 'dark-orange']
+LINE_COLORS = ['black', 'red', 'dark-violet', 'blue', 'dark-green', 'dark-orange']
 POINT_TYPES = [2, 4, 8, 10, 6, 12]
 
 logger = logging.getLogger(__name__)
@@ -434,6 +435,54 @@ def analyze_packet_loss_matrix(df: pd.DataFrame, out_dir: str):
         )
 
 
+def analyze_rtt(df: pd.DataFrame, out_dir: str):
+    # Ensures same point types and line colors across all graphs
+    point_map = {}
+    line_map = {}
+
+    # Generate graphs
+    for sat in df['sat'].unique():
+        for rate in df['rate'].unique():
+            for queue in df['queue'].unique():
+                g = gnuplot.Gnuplot(log=True,
+                                    title='"Round Trip Time - %s - %.0f Mbit/s - BDP*%d"' % (sat, rate, queue),
+                                    key='outside right center vertical samplen 2',
+                                    ylabel='"RTT (ms)"',
+                                    xlabel='"Time (s)"',
+                                    term='pdf size 12cm, 6cm',
+                                    out='"%s"' % os.path.join(out_dir, "rtt_%s_r%s_q%d.pdf" % (sat, rate, queue)),
+                                    pointsize='0.5')
+
+                # Filter only data relevant for graph
+                gdf = pd.DataFrame(df.loc[(df['sat'] == sat) & (df['rate'] == rate) & (df['queue'] == queue)])
+                gdf['second'] = (gdf['seq'] / 100).astype(np.int)
+                gdf = gdf[['loss', 'second', 'rtt']]
+                # Calculate mean average per second over all runs
+                gdf = gdf.groupby(['loss', 'second']).mean()
+
+                # Collect all variations of data
+                gdata = []
+                for loss in df['loss'].unique():
+                    gdata.append((gdf.loc[(loss,), 'rtt'], loss))
+                gdata = sorted(gdata, key=lambda x: x[1])
+
+                # Merge data to single dataframe
+                plot_df = pd.concat([x[0] for x in gdata], axis=1)
+                # Generate gnuplot commands
+                plot_cmds = [
+                    "using 1:%d with linespoints pointtype %d linecolor '%s' title 'l=%.2f%%'" %
+                    (
+                        index + 2,
+                        get_point_type(point_map, loss),
+                        get_line_color(line_map, loss),
+                        loss * 100
+                    )
+                    for index, (_, loss) in enumerate(gdata)
+                ]
+
+                g.plot_data(plot_df, *plot_cmds)
+
+
 def analyze_all(parsed_results: dict, out_dir="."):
     logger.info("Analyzing goodput")
     goodput_cols = ['protocol', 'pep', 'sat', 'rate', 'loss', 'queue', 'txq', 'run', 'second']
@@ -465,3 +514,8 @@ def analyze_all(parsed_results: dict, out_dir="."):
     ], axis=0, ignore_index=True)
     analyze_packet_loss(df_pkt_loss, out_dir)
     analyze_packet_loss_matrix(df_pkt_loss, out_dir)
+
+    logger.info("Analyzing RTT")
+    rtt_cols = ['sat', 'rate', 'loss', 'queue', 'txq', 'seq', 'rtt']
+    df_rtt = parsed_results['ping_raw'][rtt_cols]
+    analyze_rtt(df_rtt, out_dir)
