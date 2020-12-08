@@ -173,6 +173,7 @@ def analyze_goodput_matrix(df: pd.DataFrame, out_dir: str):
                     ylabel='"Goodput (kbps)"',
                     xlabel='"Time (s)"',
                     xrange='[0:30]',
+                    yrange='[0:%d]' % (rate * 2000,),
                     pointsize='0.5',
                     size=sub_size,
                     origin="%f, %f" % (sat_idx / sat_cnt, rate_idx / rate_cnt)
@@ -294,6 +295,7 @@ def analyze_cwnd_evo_matrix(df: pd.DataFrame, out_dir: str):
                     ylabel='"Congestion window (KB)"',
                     xlabel='"Time (s)"',
                     xrange='[0:30]',
+                    yrange='[0:%d]' % (rate * 3000,),
                     pointsize='0.5',
                     size=sub_size,
                     origin="%f, %f" % (sat_idx / sat_cnt, rate_idx / rate_cnt)
@@ -372,6 +374,7 @@ def analyze_packet_loss_matrix(df: pd.DataFrame, out_dir: str):
         sat_cnt = float(len(df['sat'].unique()))
         rate_cnt = float(len(df['rate'].unique()))
         sub_size = "%f, %f" % (1.0 / sat_cnt, 1.0 / rate_cnt)
+        ymax = df['packets_lost'].max()
 
         subfigures = []
 
@@ -415,6 +418,7 @@ def analyze_packet_loss_matrix(df: pd.DataFrame, out_dir: str):
                     ylabel='"Packets lost"',
                     xlabel='"Time (s)"',
                     xrange='[0:30]',
+                    yrange='[0:%d]' % (ymax,),
                     pointsize='0.5',
                     key='outside right center vertical samplen 2',
                     size=sub_size,
