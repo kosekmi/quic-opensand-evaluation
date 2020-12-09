@@ -375,13 +375,13 @@ def analyze_packet_loss_matrix(df: pd.DataFrame, out_dir: str):
         sat_cnt = float(len(df['sat'].unique()))
         rate_cnt = float(len(df['rate'].unique()))
         sub_size = "%f, %f" % (1.0 / sat_cnt, 1.0 / rate_cnt)
-        ymax = df['packets_lost'].max()
 
         subfigures = []
 
         # Generate subfigures
-        for sat_idx, sat in enumerate(sorted(df['sat'].unique(), key=sat_key)):
-            for rate_idx, rate in enumerate(sorted(df['rate'].unique(), reverse=True)):
+        for rate_idx, rate in enumerate(sorted(df['rate'].unique(), reverse=True)):
+            ymax = df.loc[df['rate'] == rate]['packets_lost'].max()
+            for sat_idx, sat in enumerate(sorted(df['sat'].unique(), key=sat_key)):
                 # Filter only data relevant for graph
                 gdf = df.loc[(df['sat'] == sat) & (df['rate'] == rate) & (df['queue'] == queue) & (df['second'] < 30)]
                 gdf = gdf[['protocol', 'pep', 'loss', 'second', 'packets_lost']]
