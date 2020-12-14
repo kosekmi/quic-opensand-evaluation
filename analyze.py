@@ -89,13 +89,14 @@ def analyze_goodput(df: pd.DataFrame, out_dir: str):
                 for protocol in df['protocol'].unique():
                     for pep in df['pep'].unique():
                         for loss in df['loss'].unique():
-                            gdata.append((
-                                gdf.loc[(protocol, pep, loss), 'bps'],
-                                protocol,
-                                pep,
-                                loss
-                            ))
+                            line_df = gdf.loc[(protocol, pep, loss), 'bps']
+                            if line_df.empty:
+                                continue
+                            gdata.append((line_df, protocol, pep, loss))
                 gdata = sorted(gdata, key=lambda x: [x[1], x[2], x[3]])
+                if len(gdata) == 0:
+                    logger.debug("No data for graph (sat=%s, rate=%dmbps, queue=%d)" % (sat, rate, queue))
+                    continue
 
                 # Merge data to single dataframe
                 plot_df = pd.concat([x[0] for x in gdata], axis=1)
@@ -107,7 +108,7 @@ def analyze_goodput(df: pd.DataFrame, out_dir: str):
                         get_point_type(point_map, loss),
                         get_line_color(line_map, (protocol, pep)),
                         protocol.upper(),
-                        (" (" + pep.upper() + ")") if pep != "none" else "",
+                        " (PEP)" if pep else "",
                         loss * 100
                     )
                     for index, (_, protocol, pep, loss) in enumerate(gdata)
@@ -142,13 +143,14 @@ def analyze_goodput_matrix(df: pd.DataFrame, out_dir: str):
                 for protocol in df['protocol'].unique():
                     for pep in df['pep'].unique():
                         for loss in df['loss'].unique():
-                            gdata.append((
-                                gdf.loc[(protocol, pep, loss), 'bps'],
-                                protocol,
-                                pep,
-                                loss
-                            ))
+                            line_df = gdf.loc[(protocol, pep, loss), 'bps']
+                            if line_df.empty:
+                                continue
+                            gdata.append((line_df, protocol, pep, loss))
                 gdata = sorted(gdata, key=lambda x: [x[1], x[2], x[3]])
+                if len(gdata) == 0:
+                    logger.debug("No data for graph (sat=%s, rate=%dmbps, queue=%d)" % (sat, rate, queue))
+                    continue
 
                 # Merge data to single dataframe
                 plot_df = pd.concat([x[0] for x in gdata], axis=1)
@@ -160,7 +162,7 @@ def analyze_goodput_matrix(df: pd.DataFrame, out_dir: str):
                         get_point_type(point_map, loss),
                         get_line_color(line_map, (protocol, pep)),
                         protocol.upper(),
-                        (" (" + pep.upper() + ")") if pep != "none" else "",
+                        " (PEP)" if pep else "",
                         loss * 100
                     )
                     for index, (_, protocol, pep, loss) in enumerate(gdata)
@@ -221,8 +223,14 @@ def analyze_cwnd_evo(df: pd.DataFrame, out_dir: str):
                 for protocol in df['protocol'].unique():
                     for pep in df['pep'].unique():
                         for loss in df['loss'].unique():
-                            gdata.append((gdf.loc[(protocol, pep, loss), 'cwnd'], protocol, pep, loss))
+                            line_df = gdf.loc[(protocol, pep, loss), 'cwnd']
+                            if line_df.empty:
+                                continue
+                            gdata.append((line_df, protocol, pep, loss))
                 gdata = sorted(gdata, key=lambda x: [x[1], x[2], x[3]])
+                if len(gdata) == 0:
+                    logger.debug("No data for graph (sat=%s, rate=%dmbps, queue=%d)" % (sat, rate, queue))
+                    continue
 
                 # Merge data to single dataframe
                 plot_df = pd.concat([x[0] for x in gdata], axis=1)
@@ -234,7 +242,7 @@ def analyze_cwnd_evo(df: pd.DataFrame, out_dir: str):
                         get_point_type(point_map, loss),
                         get_line_color(line_map, (protocol, pep)),
                         protocol.upper(),
-                        (" (" + pep.upper() + ")") if pep != "none" else "",
+                        " (PEP)" if pep else "",
                         loss * 100
                     )
                     for index, (_, protocol, pep, loss) in enumerate(gdata)
@@ -269,8 +277,14 @@ def analyze_cwnd_evo_matrix(df: pd.DataFrame, out_dir: str):
                 for protocol in df['protocol'].unique():
                     for pep in df['pep'].unique():
                         for loss in df['loss'].unique():
-                            gdata.append((gdf.loc[(protocol, pep, loss), 'cwnd'], protocol, pep, loss))
+                            line_df = gdf.loc[(protocol, pep, loss), 'cwnd']
+                            if line_df.empty:
+                                continue
+                            gdata.append((line_df, protocol, pep, loss))
                 gdata = sorted(gdata, key=lambda x: [x[1], x[2], x[3]])
+                if len(gdata) == 0:
+                    logger.debug("No data for graph (sat=%s, rate=%dmbps, queue=%d)" % (sat, rate, queue))
+                    continue
 
                 # Merge data to single dataframe
                 plot_df = pd.concat([x[0] for x in gdata], axis=1)
@@ -282,7 +296,7 @@ def analyze_cwnd_evo_matrix(df: pd.DataFrame, out_dir: str):
                         get_point_type(point_map, loss),
                         get_line_color(line_map, (protocol, pep)),
                         protocol.upper(),
-                        (" (" + pep.upper() + ")") if pep != "none" else "",
+                        " (PEP)" if pep else "",
                         loss * 100
                     )
                     for index, (_, protocol, pep, loss) in enumerate(gdata)
@@ -344,8 +358,14 @@ def analyze_packet_loss(df: pd.DataFrame, out_dir: str):
                 for protocol in df['protocol'].unique():
                     for pep in df['pep'].unique():
                         for loss in df['loss'].unique():
-                            gdata.append((gdf.loc[(protocol, pep, loss), 'packets_lost'], protocol, pep, loss))
+                            line_df = gdf.loc[(protocol, pep, loss), 'packets_lost']
+                            if line_df.empty:
+                                continue
+                            gdata.append((line_df, protocol, pep, loss))
                 gdata = sorted(gdata, key=lambda x: [x[1], x[2], x[3]])
+                if len(gdata) == 0:
+                    logger.debug("No data for graph (sat=%s, rate=%dmbps, queue=%d)" % (sat, rate, queue))
+                    continue
 
                 # Merge data to single dataframe
                 plot_df = pd.concat([x[0] for x in gdata], axis=1)
@@ -357,7 +377,7 @@ def analyze_packet_loss(df: pd.DataFrame, out_dir: str):
                         get_point_type(point_map, loss),
                         get_line_color(line_map, (protocol, pep)),
                         protocol.upper(),
-                        (" (" + pep.upper() + ")") if pep != "none" else "",
+                        " (PEP)" if pep else "",
                         loss * 100
                     )
                     for index, (_, protocol, pep, loss) in enumerate(gdata)
@@ -393,8 +413,14 @@ def analyze_packet_loss_matrix(df: pd.DataFrame, out_dir: str):
                 for protocol in df['protocol'].unique():
                     for pep in df['pep'].unique():
                         for loss in df['loss'].unique():
-                            gdata.append((gdf.loc[(protocol, pep, loss), 'packets_lost'], protocol, pep, loss))
+                            line_df = gdf.loc[(protocol, pep, loss), 'packets_lost']
+                            if line_df.empty:
+                                continue
+                            gdata.append((line_df, protocol, pep, loss))
                 gdata = sorted(gdata, key=lambda x: [x[1], x[2], x[3]])
+                if len(gdata) == 0:
+                    logger.debug("No data for graph (sat=%s, rate=%dmbps, queue=%d)" % (sat, rate, queue))
+                    continue
 
                 # Merge data to single dataframe
                 plot_df = pd.concat([x[0] for x in gdata], axis=1)
@@ -406,7 +432,7 @@ def analyze_packet_loss_matrix(df: pd.DataFrame, out_dir: str):
                         get_point_type(point_map, loss),
                         get_line_color(line_map, (protocol, pep)),
                         protocol.upper(),
-                        (" (" + pep.upper() + ")") if pep != "none" else "",
+                        " (PEP)" if pep else "",
                         loss * 100
                     )
                     for index, (_, protocol, pep, loss) in enumerate(gdata)
@@ -463,8 +489,14 @@ def analyze_rtt(df: pd.DataFrame, out_dir: str):
                 # Collect all variations of data
                 gdata = []
                 for loss in df['loss'].unique():
-                    gdata.append((gdf.loc[(loss,), 'rtt'], loss))
+                    line_df = gdf.loc[(loss,), 'rtt']
+                    if line_df.empty:
+                        continue
+                    gdata.append((line_df, loss))
                 gdata = sorted(gdata, key=lambda x: x[1])
+                if len(gdata) == 0:
+                    logger.debug("No data for graph (sat=%s, rate=%dmbps, queue=%d)" % (sat, rate, queue))
+                    continue
 
                 # Merge data to single dataframe
                 plot_df = pd.concat([x[0] for x in gdata], axis=1)

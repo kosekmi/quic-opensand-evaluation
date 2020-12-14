@@ -62,7 +62,7 @@ def bps_factor(prefix: str):
     return factor[prefix] if prefix in factor else 1
 
 
-def parse_quic_client(result_set_path):
+def parse_quic_client(result_set_path, pep=False):
     """
     Parse the client's output of the QUIC measurements from the log files in the given folder.
     :param result_set_path:
@@ -77,7 +77,7 @@ def parse_quic_client(result_set_path):
         if not os.path.isfile(path):
             logger.debug("'%s' is not a file, skipping")
             continue
-        match = re.search(r"^(\d+)_quic_client\.txt$", file_name)
+        match = re.search(r"^(\d+)_quic%s_client\.txt$" % ("_pep" if pep else "",), file_name)
         if not match:
             continue
 
@@ -104,7 +104,7 @@ def parse_quic_client(result_set_path):
     return df
 
 
-def parse_quic_server(result_set_path):
+def parse_quic_server(result_set_path, pep=False):
     """
     Parse the server's output of the QUIC measurements from the log files in the given folder.
     :param result_set_path:
@@ -119,7 +119,7 @@ def parse_quic_server(result_set_path):
         if not os.path.isfile(path):
             logger.debug("'%s' is not a file, skipping")
             continue
-        match = re.search(r"^(\d+)_quic_server\.txt$", file_name)
+        match = re.search(r"^(\d+)_quic%s_server\.txt$" % ("_pep" if pep else "",), file_name)
         if not match:
             continue
 
@@ -147,7 +147,7 @@ def parse_quic_server(result_set_path):
     return df
 
 
-def parse_tcp_client(result_set_path):
+def parse_tcp_client(result_set_path, pep=False):
     """
     Parse the client's output of the TCP measurements from the log files in the given folder.
     :param result_set_path:
@@ -162,7 +162,7 @@ def parse_tcp_client(result_set_path):
         if not os.path.isfile(path):
             logger.debug("'%s' is not a file, skipping")
             continue
-        match = re.search(r"^(\d+)_tcp_client\.json$", file_name)
+        match = re.search(r"^(\d+)_tcp%s_client\.json$" % ("_pep" if pep else "",), file_name)
         if not match:
             continue
 
@@ -189,7 +189,7 @@ def parse_tcp_client(result_set_path):
     return df
 
 
-def parse_tcp_server(result_set_path):
+def parse_tcp_server(result_set_path, pep=False):
     """
     Parse the server's output of the TCP measurements from the log files in the given folder.
     :param result_set_path:
@@ -204,7 +204,7 @@ def parse_tcp_server(result_set_path):
         if not os.path.isfile(path):
             logger.debug("'%s' is not a file, skipping")
             continue
-        match = re.search(r"^(\d+)_tcp_server\.json$", file_name)
+        match = re.search(r"^(\d+)_tcp%s_server\.json$" % ("_pep" if pep else "",), file_name)
         if not match:
             continue
 
@@ -280,7 +280,7 @@ def measure_folders(root_folder):
             continue
 
         match = re.search(
-            r"^(GEO|MEO|LEO|NONE)_r(\d+)mbit_l(\d+(?:\.\d+)?)_q(\d+(?:\.\d+)?)(?:_txq(\d+))?(?:_([a-z]+))?$",
+            r"^(GEO|MEO|LEO|NONE)_r(\d+)mbit_l(\d+(?:\.\d+)?)_q(\d+(?:\.\d+)?)(?:_txq(\d+))?$",
             folder_name)
         if not match:
             logger.info("Directory '%s' doesn't match, skipping", folder_name)
@@ -291,8 +291,7 @@ def measure_folders(root_folder):
         loss = float(match.group(3)) / 100.0
         queue = float(match.group(4))
         txq = int(match.group(5)) if match.group(5) else 1000
-        pep = match.group(6) if match.group(6) else "none"
-        yield folder_name, sat, rate, loss, queue, txq, pep
+        yield folder_name, sat, rate, loss, queue, txq
 
 
 def extend_df(df, protocol, pep, sat, rate, loss, queue, txq):
@@ -330,9 +329,13 @@ def fix_column_dtypes(df):
     numerics = {'rate', 'loss', 'queue', 'txq', 'run', 'second', 'bytes', 'cwnd', 'packets_sent', 'packets_received',
                 'packets_lost', 'measured_loss', 'bps', 'rtt', 'rtt_min', 'rtt_avg', 'rtt_max', 'rtt_mdev', 'ttl',
                 'seq'}
+    booleans = {'pep'}
+
     cols = df.columns.to_list()
     for col_name in numerics.intersection(cols):
         df[col_name] = pd.to_numeric(df[col_name])
+    for col_name in booleans.intersection(cols):
+        df[col_name] = df[col_name].astype(bool)
 
     return df
 
@@ -353,46 +356,47 @@ def parse(in_dir="~/measure"):
                                             'packets_sent', 'packets_received', 'rtt_min', 'rtt_avg', 'rtt_max',
                                             'rtt_mdev'])
 
-    for folder_name, sat, rate, loss, queue, txq, pep in measure_folders(in_dir):
+    for folder_name, sat, rate, loss, queue, txq in measure_folders(in_dir):
         logger.info("Parsing files in %s", folder_name)
         path = os.path.join(in_dir, folder_name)
 
-        # QUIC client
-        df = parse_quic_client(path)
-        if df is not None:
-            df = extend_df(df, 'quic', pep, sat, rate, loss, queue, txq)
-            df_quic_client = df_quic_client.append(df, ignore_index=True)
-        else:
-            logger.warning("No data QUIC client data in %s" % folder_name)
+        for pep in (False, True):
+            # QUIC client
+            df = parse_quic_client(path, pep=pep)
+            if df is not None:
+                df = extend_df(df, 'quic', pep, sat, rate, loss, queue, txq)
+                df_quic_client = df_quic_client.append(df, ignore_index=True)
+            else:
+                logger.warning("No data QUIC%s client data in %s" % (" (PEP)" if pep else "", folder_name))
 
-        # QUIC server
-        df = parse_quic_server(path)
-        if df is not None:
-            df = extend_df(df, 'quic', pep, sat, rate, loss, queue, txq)
-            df_quic_server = df_quic_server.append(df, ignore_index=True)
-        else:
-            logger.warning("No data QUIC server data in %s" % folder_name)
+            # QUIC server
+            df = parse_quic_server(path, pep=pep)
+            if df is not None:
+                df = extend_df(df, 'quic', pep, sat, rate, loss, queue, txq)
+                df_quic_server = df_quic_server.append(df, ignore_index=True)
+            else:
+                logger.warning("No data QUIC%s server data in %s" % (" (PEP)" if pep else "", folder_name))
 
-        # TCP client
-        df = parse_tcp_client(path)
-        if df is not None:
-            df = extend_df(df, 'tcp', pep, sat, rate, loss, queue, txq)
-            df_tcp_client = df_tcp_client.append(df, ignore_index=True)
-        else:
-            logger.warning("No data TCP client data in %s" % folder_name)
+            # TCP client
+            df = parse_tcp_client(path, pep=pep)
+            if df is not None:
+                df = extend_df(df, 'tcp', pep, sat, rate, loss, queue, txq)
+                df_tcp_client = df_tcp_client.append(df, ignore_index=True)
+            else:
+                logger.warning("No data TCP%s client data in %s" % (" (PEP)" if pep else "", folder_name))
 
-        # TCP server
-        df = parse_tcp_server(path)
-        if df is not None:
-            df = extend_df(df, 'tcp', pep, sat, rate, loss, queue, txq)
-            df_tcp_server = df_tcp_server.append(df, ignore_index=True)
-        else:
-            logger.warning("No data TCP server data in %s" % folder_name)
+            # TCP server
+            df = parse_tcp_server(path, pep=pep)
+            if df is not None:
+                df = extend_df(df, 'tcp', pep, sat, rate, loss, queue, txq)
+                df_tcp_server = df_tcp_server.append(df, ignore_index=True)
+            else:
+                logger.warning("No data TCP%s server data in %s" % (" (PEP)" if pep else "", folder_name))
 
         # Ping
         dfs = parse_ping(path)
         if dfs is not None:
-            dfs = [extend_df(df, 'icmp', pep, sat, rate, loss, queue, txq) for df in dfs]
+            dfs = [extend_df(df, 'icmp', 'none', sat, rate, loss, queue, txq) for df in dfs]
             df_ping_raw = df_ping_raw.append(dfs[0], ignore_index=True)
             df_ping_summary = df_ping_summary.append(dfs[1], ignore_index=True)
         else:
