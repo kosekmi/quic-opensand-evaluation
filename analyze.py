@@ -518,8 +518,8 @@ def analyze_rtt(df: pd.DataFrame, out_dir: str):
 def analyze_all(parsed_results: dict, out_dir="."):
     logger.info("Analyzing goodput")
     goodput_cols = ['protocol', 'pep', 'sat', 'rate', 'loss', 'queue', 'txq', 'run', 'second']
-    df_goodput_quic = parsed_results['quic_client'][goodput_cols]
-    df_goodput_tcp = parsed_results['tcp_client'][goodput_cols]
+    df_goodput_quic = pd.DataFrame(parsed_results['quic_client'][goodput_cols])
+    df_goodput_tcp = pd.DataFrame(parsed_results['tcp_client'][goodput_cols])
     # Take the most accurate value for each of the protocols
     # qperf: Byte count for each second
     # iperf: Calculated bps
