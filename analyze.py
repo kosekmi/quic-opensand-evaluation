@@ -89,7 +89,11 @@ def analyze_goodput(df: pd.DataFrame, out_dir: str):
                 for protocol in df['protocol'].unique():
                     for pep in df['pep'].unique():
                         for loss in df['loss'].unique():
-                            line_df = gdf.loc[(protocol, pep, loss), 'bps']
+                            try:
+                                line_df = gdf.loc[(protocol, pep, loss), 'bps']
+                            except KeyError:
+                                # Combination of protocol, pep and loss does not exist
+                                continue
                             if line_df.empty:
                                 continue
                             gdata.append((line_df, protocol, pep, loss))
@@ -143,7 +147,11 @@ def analyze_goodput_matrix(df: pd.DataFrame, out_dir: str):
                 for protocol in df['protocol'].unique():
                     for pep in df['pep'].unique():
                         for loss in df['loss'].unique():
-                            line_df = gdf.loc[(protocol, pep, loss), 'bps']
+                            try:
+                                line_df = gdf.loc[(protocol, pep, loss), 'bps']
+                            except KeyError:
+                                # Combination of protocol, pep and loss does not exist
+                                continue
                             if line_df.empty:
                                 continue
                             gdata.append((line_df, protocol, pep, loss))
@@ -223,7 +231,11 @@ def analyze_cwnd_evo(df: pd.DataFrame, out_dir: str):
                 for protocol in df['protocol'].unique():
                     for pep in df['pep'].unique():
                         for loss in df['loss'].unique():
-                            line_df = gdf.loc[(protocol, pep, loss), 'cwnd']
+                            try:
+                                line_df = gdf.loc[(protocol, pep, loss), 'cwnd']
+                            except KeyError:
+                                # Combination of protocol, pep and loss does not exist
+                                continue
                             if line_df.empty:
                                 continue
                             gdata.append((line_df, protocol, pep, loss))
@@ -277,7 +289,11 @@ def analyze_cwnd_evo_matrix(df: pd.DataFrame, out_dir: str):
                 for protocol in df['protocol'].unique():
                     for pep in df['pep'].unique():
                         for loss in df['loss'].unique():
-                            line_df = gdf.loc[(protocol, pep, loss), 'cwnd']
+                            try:
+                                line_df = gdf.loc[(protocol, pep, loss), 'cwnd']
+                            except KeyError:
+                                # Combination of protocol, pep and loss does not exist
+                                continue
                             if line_df.empty:
                                 continue
                             gdata.append((line_df, protocol, pep, loss))
@@ -358,7 +374,11 @@ def analyze_packet_loss(df: pd.DataFrame, out_dir: str):
                 for protocol in df['protocol'].unique():
                     for pep in df['pep'].unique():
                         for loss in df['loss'].unique():
-                            line_df = gdf.loc[(protocol, pep, loss), 'packets_lost']
+                            try:
+                                line_df = gdf.loc[(protocol, pep, loss), 'packets_lost']
+                            except KeyError:
+                                # Combination of protocol, pep and loss does not exist
+                                continue
                             if line_df.empty:
                                 continue
                             gdata.append((line_df, protocol, pep, loss))
@@ -413,7 +433,11 @@ def analyze_packet_loss_matrix(df: pd.DataFrame, out_dir: str):
                 for protocol in df['protocol'].unique():
                     for pep in df['pep'].unique():
                         for loss in df['loss'].unique():
-                            line_df = gdf.loc[(protocol, pep, loss), 'packets_lost']
+                            try:
+                                line_df = gdf.loc[(protocol, pep, loss), 'packets_lost']
+                            except KeyError:
+                                # Combination of protocol, pep and loss does not exist
+                                continue
                             if line_df.empty:
                                 continue
                             gdata.append((line_df, protocol, pep, loss))
@@ -489,7 +513,11 @@ def analyze_rtt(df: pd.DataFrame, out_dir: str):
                 # Collect all variations of data
                 gdata = []
                 for loss in df['loss'].unique():
-                    line_df = gdf.loc[(loss,), 'rtt']
+                    try:
+                        line_df = gdf.loc[(loss,), 'rtt']
+                    except KeyError:
+                        # Selected loss does not exist
+                        continue
                     if line_df.empty:
                         continue
                     gdata.append((line_df, loss))

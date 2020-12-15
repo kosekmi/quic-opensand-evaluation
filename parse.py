@@ -66,6 +66,7 @@ def parse_quic_client(result_set_path, pep=False):
     """
     Parse the client's output of the QUIC measurements from the log files in the given folder.
     :param result_set_path:
+    :param pep:
     :return:
     """
 
@@ -108,6 +109,7 @@ def parse_quic_server(result_set_path, pep=False):
     """
     Parse the server's output of the QUIC measurements from the log files in the given folder.
     :param result_set_path:
+    :param pep:
     :return:
     """
 
@@ -151,6 +153,7 @@ def parse_tcp_client(result_set_path, pep=False):
     """
     Parse the client's output of the TCP measurements from the log files in the given folder.
     :param result_set_path:
+    :param pep:
     :return:
     """
 
@@ -193,6 +196,7 @@ def parse_tcp_server(result_set_path, pep=False):
     """
     Parse the server's output of the TCP measurements from the log files in the given folder.
     :param result_set_path:
+    :param pep:
     :return:
     """
 
@@ -396,7 +400,7 @@ def parse(in_dir="~/measure"):
         # Ping
         dfs = parse_ping(path)
         if dfs is not None:
-            dfs = [extend_df(df, 'icmp', 'none', sat, rate, loss, queue, txq) for df in dfs]
+            dfs = [extend_df(df, 'icmp', False, sat, rate, loss, queue, txq) for df in dfs]
             df_ping_raw = df_ping_raw.append(dfs[0], ignore_index=True)
             df_ping_summary = df_ping_summary.append(dfs[1], ignore_index=True)
         else:
