@@ -8,6 +8,8 @@ from pygnuplot import gnuplot
 LINE_COLORS = ['black', 'red', 'dark-violet', 'blue', 'dark-green', 'dark-orange']
 POINT_TYPES = [2, 4, 8, 10, 6, 12]
 
+GRAPH_SIZE_CM = (18, 6)
+
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 handler = logging.StreamHandler(sys.stdout)
@@ -74,7 +76,7 @@ def analyze_goodput(df: pd.DataFrame, out_dir: str):
                                     ylabel='"Goodput (kbps)"',
                                     xlabel='"Time (s)"',
                                     xrange='[0:30]',
-                                    term='pdf size 12cm, 6cm',
+                                    term="pdf size %dcm, %dcm" % GRAPH_SIZE_CM,
                                     out='"%s"' % os.path.join(out_dir, "goodput_%s_r%s_q%d.pdf" % (sat, rate, queue)),
                                     pointsize='0.5')
 
@@ -194,7 +196,7 @@ def analyze_goodput_matrix(df: pd.DataFrame, out_dir: str):
         gnuplot.multiplot(
             *subfigures,
             title='"Goodput evolution - BDP*%d"' % queue,
-            term='pdf size %dcm, %dcm' % (12 * sat_cnt, 6 * rate_cnt),
+            term='pdf size %dcm, %dcm' % (GRAPH_SIZE_CM[0] * sat_cnt, GRAPH_SIZE_CM[1] * rate_cnt),
             output='"%s"' % os.path.join(out_dir, "matrix_goodput_q%d.pdf" % queue),
         )
 
@@ -215,7 +217,7 @@ def analyze_cwnd_evo(df: pd.DataFrame, out_dir: str):
                                     ylabel='"Congestion window (KB)"',
                                     xlabel='"Time (s)"',
                                     xrange='[0:30]',
-                                    term='pdf size 12cm, 6cm',
+                                    term="pdf size %dcm, %dcm" % GRAPH_SIZE_CM,
                                     out='"%s"' % os.path.join(out_dir,
                                                               "cwnd_evo_%s_r%s_q%d.pdf" % (sat, rate, queue)),
                                     pointsize='0.5')
@@ -336,7 +338,7 @@ def analyze_cwnd_evo_matrix(df: pd.DataFrame, out_dir: str):
         gnuplot.multiplot(
             *subfigures,
             title='"Congestion window evolution - BDP*%d"' % queue,
-            term='pdf size %dcm, %dcm' % (12 * sat_cnt, 6 * rate_cnt),
+            term='pdf size %dcm, %dcm' % (GRAPH_SIZE_CM[0] * sat_cnt, GRAPH_SIZE_CM[1] * rate_cnt),
             output='"%s"' % os.path.join(out_dir, "matrix_cwnd_evo_q%d.pdf" % queue),
         )
 
@@ -356,7 +358,7 @@ def analyze_packet_loss(df: pd.DataFrame, out_dir: str):
                                     ylabel='"Packets lost"',
                                     xlabel='"Time (s)"',
                                     xrange='[0:30]',
-                                    term='pdf size 12cm, 6cm',
+                                    term="pdf size %dcm, %dcm" % GRAPH_SIZE_CM,
                                     out='"%s"' % os.path.join(out_dir,
                                                               "packet_loss_%s_r%s_q%d.pdf" % (sat, rate, queue)
                                                               ),
@@ -480,7 +482,7 @@ def analyze_packet_loss_matrix(df: pd.DataFrame, out_dir: str):
         gnuplot.multiplot(
             *subfigures,
             title='"Packet loss - BDP*%d"' % queue,
-            term='pdf size %dcm, %dcm' % (12 * sat_cnt, 6 * rate_cnt),
+            term='pdf size %dcm, %dcm' % (GRAPH_SIZE_CM[0] * sat_cnt, GRAPH_SIZE_CM[1] * rate_cnt),
             output='"%s"' % os.path.join(out_dir, "matrix_packet_loss_q%d.pdf" % queue),
         )
 
@@ -499,7 +501,7 @@ def analyze_rtt(df: pd.DataFrame, out_dir: str):
                                     key='outside right center vertical samplen 2',
                                     ylabel='"RTT (ms)"',
                                     xlabel='"Time (s)"',
-                                    term='pdf size 12cm, 6cm',
+                                    term="pdf size %dcm, %dcm" % GRAPH_SIZE_CM,
                                     out='"%s"' % os.path.join(out_dir, "rtt_%s_r%s_q%d.pdf" % (sat, rate, queue)),
                                     pointsize='0.5')
 
