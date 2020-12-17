@@ -78,7 +78,7 @@ def parse_quic_client(result_set_path, pep=False):
         if not os.path.isfile(path):
             logger.debug("'%s' is not a file, skipping")
             continue
-        match = re.search(r"^(\d+)_quic%s_client\.txt$" % ("_pep" if pep else "",), file_name)
+        match = re.search(r"^quic%s_(\d+)_client\.txt$" % ("_pep" if pep else "",), file_name)
         if not match:
             continue
 
@@ -105,6 +105,54 @@ def parse_quic_client(result_set_path, pep=False):
     return df
 
 
+def parse_quic_ttfb(result_set_path, pep=False):
+    """
+    Parse the output of the QUIC TTFB measurements from the log files in the given folder.
+    :param result_set_path:
+    :param pep:
+    :return:
+    """
+
+    logger.info("Parsing QUIC ttfb log files")
+    df = pd.DataFrame(columns=['run', 'con_est', 'ttfb'])
+
+    for file_name in os.listdir(result_set_path):
+        path = os.path.join(result_set_path, file_name)
+        if not os.path.isfile(path):
+            logger.debug("'%s' is not a file, skipping")
+            continue
+        match = re.search(r"^quic%s_ttfb_(\d+)_client\.txt$" % ("_pep" if pep else "",), file_name)
+        if not match:
+            continue
+
+        logger.debug("Parsing '%s'", file_name)
+        run = int(match.group(1))
+        con_est = None
+        ttfb = None
+        with open(path) as file:
+            for line in file:
+                if line.startswith('connection establishment time:'):
+                    if con_est is not None:
+                        logger.warning("Found duplicate value for con_est in '%s', ignoring", path)
+                    else:
+                        con_est = int(line.split(':', 1)[1].strip()[:-2])
+                elif line.startswith('time to first byte:'):
+                    if ttfb is not None:
+                        logger.warning("Found duplicate value for ttfb in '%s', ignoring", path)
+                    else:
+                        ttfb = int(line.split(':', 1)[1].strip()[:-2])
+        df = df.append({
+            'run': run,
+            'con_est': con_est,
+            'ttfb': ttfb
+        }, ignore_index=True)
+
+    if df.empty:
+        logger.warning("No QUIC client data found")
+
+    return df
+
+
 def parse_quic_server(result_set_path, pep=False):
     """
     Parse the server's output of the QUIC measurements from the log files in the given folder.
@@ -121,7 +169,7 @@ def parse_quic_server(result_set_path, pep=False):
         if not os.path.isfile(path):
             logger.debug("'%s' is not a file, skipping")
             continue
-        match = re.search(r"^(\d+)_quic%s_server\.txt$" % ("_pep" if pep else "",), file_name)
+        match = re.search(r"^quic%s_(\d+)_server\.txt$" % ("_pep" if pep else "",), file_name)
         if not match:
             continue
 
@@ -165,7 +213,7 @@ def parse_tcp_client(result_set_path, pep=False):
         if not os.path.isfile(path):
             logger.debug("'%s' is not a file, skipping")
             continue
-        match = re.search(r"^(\d+)_tcp%s_client\.json$" % ("_pep" if pep else "",), file_name)
+        match = re.search(r"^tcp%s_(\d+)_client\.json$" % ("_pep" if pep else "",), file_name)
         if not match:
             continue
 
@@ -208,7 +256,7 @@ def parse_tcp_server(result_set_path, pep=False):
         if not os.path.isfile(path):
             logger.debug("'%s' is not a file, skipping")
             continue
-        match = re.search(r"^(\d+)_tcp%s_server\.json$" % ("_pep" if pep else "",), file_name)
+        match = re.search(r"^tcp%s_(\d+)_server\.json$" % ("_pep" if pep else "",), file_name)
         if not match:
             continue
 
