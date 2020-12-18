@@ -86,8 +86,10 @@ def parse_quic_client(result_set_path, pep=False):
         run = int(match.group(1))
         with open(path) as file:
             for line in file:
-                line_match = re.search(r"^second (\d+): (\d+(?:\.\d+)?) ([a-z]?)bit/s \((\d+) bytes received, (\d+) packets received\)$",
-                                       line.strip())
+                line_match = re.search(
+                    r"^second (\d+): (\d+(?:\.\d+)?) ([a-z]?)bit/s \((\d+) bytes received, (\d+) packets received\)$",
+                    line.strip()
+                )
                 if not line_match:
                     continue
 
@@ -148,7 +150,7 @@ def parse_quic_ttfb(result_set_path, pep=False):
         }, ignore_index=True)
 
     if df.empty:
-        logger.warning("No QUIC client data found")
+        logger.warning("No QUIC ttfb data found")
 
     return df
 
@@ -236,6 +238,54 @@ def parse_tcp_client(result_set_path, pep=False):
 
     if df.empty:
         logger.warning("No TCP client data found")
+
+    return df
+
+
+def parse_tcp_ttfb(result_set_path, pep=False):
+    """
+    Parse the output of the TCP TTFB measurements from the log files in the given folder.
+    :param result_set_path:
+    :param pep:
+    :return:
+    """
+
+    logger.info("Parsing TCP ttfb log files")
+    df = pd.DataFrame(columns=['run', 'con_est', 'ttfb'])
+
+    for file_name in os.listdir(result_set_path):
+        path = os.path.join(result_set_path, file_name)
+        if not os.path.isfile(path):
+            logger.debug("'%s' is not a file, skipping")
+            continue
+        match = re.search(r"^tcp%s_ttfb_(\d+)_client\.txt$" % ("_pep" if pep else "",), file_name)
+        if not match:
+            continue
+
+        logger.debug("Parsing '%s'", file_name)
+        run = int(match.group(1))
+        con_est = None
+        ttfb = None
+        with open(path) as file:
+            for line in file:
+                if line.startswith('established='):
+                    if con_est is not None:
+                        logger.warning("Found duplicate value for con_est in '%s', ignoring", path)
+                    else:
+                        con_est = float(line.split('=', 1)[1].strip()) * 1000.0
+                elif line.startswith('ttfb='):
+                    if ttfb is not None:
+                        logger.warning("Found duplicate value for ttfb in '%s', ignoring", path)
+                    else:
+                        ttfb = float(line.split('=', 1)[1].strip()) * 1000.0
+        df = df.append({
+            'run': run,
+            'con_est': con_est,
+            'ttfb': ttfb
+        }, ignore_index=True)
+
+    if df.empty:
+        logger.warning("No TCP ttfb data found")
 
     return df
 
@@ -398,10 +448,14 @@ def parse(in_dir="~/measure"):
                                            'run', 'second', 'bps', 'bytes', 'packets_received'])
     df_quic_server = pd.DataFrame(columns=['protocol', 'pep', 'sat', 'rate', 'loss', 'queue', 'txq',
                                            'run', 'second', 'cwnd', 'packets_sent', 'packets_lost'])
+    df_quic_ttfb = pd.DataFrame(columns=['protocol', 'pep', 'sat', 'rate', 'loss', 'queue', 'txq',
+                                         'run', 'con_est', 'ttfb'])
     df_tcp_client = pd.DataFrame(columns=['protocol', 'pep', 'sat', 'rate', 'loss', 'queue', 'txq',
                                           'run', 'second', 'bps', 'bytes', 'omitted'])
     df_tcp_server = pd.DataFrame(columns=['protocol', 'pep', 'sat', 'rate', 'loss', 'queue', 'txq',
                                           'run', 'second', 'cwnd', 'bps', 'bytes', 'packets_lost', 'rtt', 'omitted'])
+    df_tcp_ttfb = pd.DataFrame(columns=['protocol', 'pep', 'sat', 'rate', 'loss', 'queue', 'txq',
+                                        'run', 'con_est', 'ttfb'])
     df_ping_raw = pd.DataFrame(columns=['protocol', 'pep', 'sat', 'rate', 'loss', 'queue', 'txq',
                                         'seq', 'ttl', 'rtt'])
     df_ping_summary = pd.DataFrame(columns=['protocol', 'pep', 'sat', 'rate', 'loss', 'queue', 'txq',
@@ -429,6 +483,14 @@ def parse(in_dir="~/measure"):
             else:
                 logger.warning("No data QUIC%s server data in %s" % (" (PEP)" if pep else "", folder_name))
 
+            # QUIC ttfb
+            df = parse_quic_ttfb(path, pep=pep)
+            if df is not None:
+                df = extend_df(df, 'quic', pep, sat, rate, loss, queue, txq)
+                df_quic_ttfb = df_quic_ttfb.append(df, ignore_index=True)
+            else:
+                logger.warning("No data QUIC%s ttfb data in %s" % (" (PEP)" if pep else "", folder_name))
+
             # TCP client
             df = parse_tcp_client(path, pep=pep)
             if df is not None:
@@ -444,6 +506,14 @@ def parse(in_dir="~/measure"):
                 df_tcp_server = df_tcp_server.append(df, ignore_index=True)
             else:
                 logger.warning("No data TCP%s server data in %s" % (" (PEP)" if pep else "", folder_name))
+
+            # TCP ttfb
+            df = parse_tcp_ttfb(path, pep=pep)
+            if df is not None:
+                df = extend_df(df, 'tcp', pep, sat, rate, loss, queue, txq)
+                df_tcp_ttfb = df_tcp_ttfb.append(df, ignore_index=True)
+            else:
+                logger.warning("No data TCP%s ttfb data in %s" % (" (PEP)" if pep else "", folder_name))
 
         # Ping
         dfs = parse_ping(path)
@@ -466,8 +536,10 @@ def parse(in_dir="~/measure"):
     return {
         'quic_client': df_quic_client,
         'quic_server': df_quic_server,
+        'quic_ttfb': df_quic_ttfb,
         'tcp_client': df_tcp_client,
         'tcp_server': df_tcp_server,
+        'tcp_ttfb': df_tcp_ttfb,
         'ping_raw': df_ping_raw,
         'ping_summary': df_ping_summary
     }
