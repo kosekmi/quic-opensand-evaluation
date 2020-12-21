@@ -8,13 +8,20 @@ from pygnuplot import gnuplot
 LINE_COLORS = ['black', 'red', 'dark-violet', 'blue', 'dark-green', 'dark-orange']
 POINT_TYPES = [2, 4, 8, 10, 6, 12]
 
-GRAPH_SIZE_CM = (18, 6)
+GRAPH_PLOT_SIZE_CM = (18, 6)
+VALUE_PLOT_SIZE_CM = (12, 8)
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-handler = logging.StreamHandler(sys.stdout)
-handler.setLevel(logging.DEBUG)
-logger.addHandler(handler)
+global logger
+try:
+    logger
+except NameError:
+    # No logger defined
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.DEBUG)
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setLevel(logging.DEBUG)
+    handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s'))
+    logger.addHandler(handler)
 
 
 def get_point_type(pmap: dict, val: any):
@@ -71,12 +78,12 @@ def analyze_goodput(df: pd.DataFrame, out_dir: str):
         for rate in df['rate'].unique():
             for queue in df['queue'].unique():
                 g = gnuplot.Gnuplot(log=True,
-                                    title='"Goodput evolution - %s - %.0f Mbit/s - BDP*%d"' % (sat, rate, queue),
+                                    title='"Goodput Evolution - %s - %.0f Mbit/s - BDP*%d"' % (sat, rate, queue),
                                     key='outside right center vertical samplen 2',
                                     ylabel='"Goodput (kbps)"',
                                     xlabel='"Time (s)"',
                                     xrange='[0:30]',
-                                    term="pdf size %dcm, %dcm" % GRAPH_SIZE_CM,
+                                    term="pdf size %dcm, %dcm" % GRAPH_PLOT_SIZE_CM,
                                     out='"%s"' % os.path.join(out_dir, "goodput_%s_r%s_q%d.pdf" % (sat, rate, queue)),
                                     pointsize='0.5')
 
@@ -195,8 +202,8 @@ def analyze_goodput_matrix(df: pd.DataFrame, out_dir: str):
 
         gnuplot.multiplot(
             *subfigures,
-            title='"Goodput evolution - BDP*%d"' % queue,
-            term='pdf size %dcm, %dcm' % (GRAPH_SIZE_CM[0] * sat_cnt, GRAPH_SIZE_CM[1] * rate_cnt),
+            title='"Goodput Evolution - BDP*%d"' % queue,
+            term='pdf size %dcm, %dcm' % (GRAPH_PLOT_SIZE_CM[0] * sat_cnt, GRAPH_PLOT_SIZE_CM[1] * rate_cnt),
             output='"%s"' % os.path.join(out_dir, "matrix_goodput_q%d.pdf" % queue),
         )
 
@@ -211,13 +218,13 @@ def analyze_cwnd_evo(df: pd.DataFrame, out_dir: str):
         for rate in df['rate'].unique():
             for queue in df['queue'].unique():
                 g = gnuplot.Gnuplot(log=True,
-                                    title='"Congestion window evolution - %s - %.0f Mbit/s - BDP*%d"'
+                                    title='"Congestion Window Evolution - %s - %.0f Mbit/s - BDP*%d"'
                                           % (sat, rate, queue),
                                     key='outside right center vertical samplen 2',
                                     ylabel='"Congestion window (KB)"',
                                     xlabel='"Time (s)"',
                                     xrange='[0:30]',
-                                    term="pdf size %dcm, %dcm" % GRAPH_SIZE_CM,
+                                    term="pdf size %dcm, %dcm" % GRAPH_PLOT_SIZE_CM,
                                     out='"%s"' % os.path.join(out_dir,
                                                               "cwnd_evo_%s_r%s_q%d.pdf" % (sat, rate, queue)),
                                     pointsize='0.5')
@@ -338,7 +345,7 @@ def analyze_cwnd_evo_matrix(df: pd.DataFrame, out_dir: str):
         gnuplot.multiplot(
             *subfigures,
             title='"Congestion window evolution - BDP*%d"' % queue,
-            term='pdf size %dcm, %dcm' % (GRAPH_SIZE_CM[0] * sat_cnt, GRAPH_SIZE_CM[1] * rate_cnt),
+            term='pdf size %dcm, %dcm' % (GRAPH_PLOT_SIZE_CM[0] * sat_cnt, GRAPH_PLOT_SIZE_CM[1] * rate_cnt),
             output='"%s"' % os.path.join(out_dir, "matrix_cwnd_evo_q%d.pdf" % queue),
         )
 
@@ -353,12 +360,12 @@ def analyze_packet_loss(df: pd.DataFrame, out_dir: str):
         for rate in df['rate'].unique():
             for queue in df['queue'].unique():
                 g = gnuplot.Gnuplot(log=True,
-                                    title='"Packet loss - %s - %.0f Mbit/s - BDP*%d"' % (sat, rate, queue),
+                                    title='"Packet Loss - %s - %.0f Mbit/s - BDP*%d"' % (sat, rate, queue),
                                     key='outside right center vertical samplen 2',
                                     ylabel='"Packets lost"',
                                     xlabel='"Time (s)"',
                                     xrange='[0:30]',
-                                    term="pdf size %dcm, %dcm" % GRAPH_SIZE_CM,
+                                    term="pdf size %dcm, %dcm" % GRAPH_PLOT_SIZE_CM,
                                     out='"%s"' % os.path.join(out_dir,
                                                               "packet_loss_%s_r%s_q%d.pdf" % (sat, rate, queue)
                                                               ),
@@ -482,7 +489,7 @@ def analyze_packet_loss_matrix(df: pd.DataFrame, out_dir: str):
         gnuplot.multiplot(
             *subfigures,
             title='"Packet loss - BDP*%d"' % queue,
-            term='pdf size %dcm, %dcm' % (GRAPH_SIZE_CM[0] * sat_cnt, GRAPH_SIZE_CM[1] * rate_cnt),
+            term='pdf size %dcm, %dcm' % (GRAPH_PLOT_SIZE_CM[0] * sat_cnt, GRAPH_PLOT_SIZE_CM[1] * rate_cnt),
             output='"%s"' % os.path.join(out_dir, "matrix_packet_loss_q%d.pdf" % queue),
         )
 
@@ -501,7 +508,7 @@ def analyze_rtt(df: pd.DataFrame, out_dir: str):
                                     key='outside right center vertical samplen 2',
                                     ylabel='"RTT (ms)"',
                                     xlabel='"Time (s)"',
-                                    term="pdf size %dcm, %dcm" % GRAPH_SIZE_CM,
+                                    term="pdf size %dcm, %dcm" % GRAPH_PLOT_SIZE_CM,
                                     out='"%s"' % os.path.join(out_dir, "rtt_%s_r%s_q%d.pdf" % (sat, rate, queue)),
                                     pointsize='0.5')
 
@@ -545,6 +552,107 @@ def analyze_rtt(df: pd.DataFrame, out_dir: str):
                 g.plot_data(plot_df, *plot_cmds)
 
 
+def analyze_connection_times(df: pd.DataFrame, out_dir: str, time_val: str):
+    # Ensures same point types and line colors across all graphs
+    point_map = {}
+    line_map = {}
+
+    # Generate graphs
+    for protocol in df['protocol'].unique():
+        for pep in df['pep'].unique():
+            for queue in df['queue'].unique():
+                # Filter data relevant for graph
+                gdf = pd.DataFrame(
+                    df.loc[
+                        (df['protocol'] == protocol) &
+                        (df['pep'] ^ (not pep)) &
+                        (df['queue'] == queue)
+                        ])
+                gdf = gdf[['sat', 'rate', 'loss', time_val]]
+                gdf = gdf.groupby(['sat', 'rate', 'loss']).describe(percentiles=[0.05, 0.95])
+                # Flatten column names
+                gdf.columns = [cname for _, cname in gdf.columns]
+                # Move index back to columns
+                gdf.reset_index(inplace=True)
+                gdf = gdf[['sat', 'rate', 'loss', 'mean', '5%', '95%']]
+
+                # Make sure that all combinations of sat, rate and loss exists (needed for gnuplot commands)
+                for sat in gdf['sat'].unique():
+                    for rate in gdf['rate'].unique():
+                        for loss in gdf['loss'].unique():
+                            gdf_slice = gdf.loc[
+                                (df['sat'] == sat) &
+                                (df['rate'] == rate) &
+                                (df['loss'] == loss)
+                            ]
+                            if gdf_slice.empty:
+                                gdf = gdf.append({
+                                    'sat': sat,
+                                    'rate': rate,
+                                    'loss': loss,
+                                    'mean': np.nan,
+                                    '5%': np.nan,
+                                    '95%': np.nan
+                                }, ignore_index=True)
+                # Generate indexes used to calculate x coordinate in plot
+                sat_idx = sorted(gdf['sat'].unique(), key=sat_key)
+                gdf['sat_idx'] = gdf['sat'].apply(lambda x: sat_idx.index(x))
+                rate_idx = sorted(gdf['rate'].unique())
+                gdf['rate_idx'] = gdf['rate'].apply(lambda x: rate_idx.index(x))
+                gdf.sort_values(by=['sat_idx', 'rate_idx', 'loss'], inplace=True, ignore_index=True)
+                gdf = gdf[['sat', 'sat_idx', 'rate', 'rate_idx', 'loss', 'mean', '5%', '95%']]
+
+                # Create graph
+                cnt_loss = len(gdf['loss'].unique())
+                cnt_rate = len(gdf['rate'].unique())
+                cnt_sat = len(gdf['sat'].unique())
+                x_max = (cnt_rate + 1) * cnt_sat
+                y_max = np.ceil(gdf['95%'].max() / 1000.0) * 1000
+
+                plot_title = "Unknown"
+                if time_val == 'ttfb':
+                    plot_title = "Time to First Byte"
+                elif time_val == 'con_est':
+                    plot_title = "Connection Establishment"
+
+                g = gnuplot.Gnuplot(log=True,
+                                    title='"%s%s - BDP*%d %s"' %
+                                          (protocol.upper(), " (PEP)" if pep else "", queue, plot_title),
+                                    key='top left samplen 2',
+                                    xlabel='"Satellite type, link capacity (Mbit/s)"',
+                                    ylabel='"Time (ms)"',
+                                    xrange="[0:%d]" % x_max,
+                                    yrange="[0:%d]" % y_max,
+                                    term="pdf size %dcm, %dcm" % VALUE_PLOT_SIZE_CM,
+                                    out='"%s"' % os.path.join(out_dir, "%s_%s%s_q%d.pdf" %
+                                                              (time_val, protocol, "_pep" if pep else "", queue)),
+                                    pointsize='0.5',
+                                    xtics='1')
+                # Add labels for satellite types
+                for sat in gdf['sat'].unique():
+                    g.set(label='"%s" at %f,%f center' % (
+                        sat.upper(),
+                        (sat_idx.index(sat) + 0.5) * (cnt_rate + 1),
+                        y_max * 0.075
+                    ))
+
+                plot_cmds = [
+                    # using: select values for error bars (x:y:y_low:y_high)
+                    "every %d::%d using ($3*%d+$5+1+%f):7:8:9 with errorbars pointtype %d linecolor '%s' title '%.2f%%'" %
+                    (
+                        cnt_loss,  # point increment
+                        loss_idx,  # start point
+                        cnt_rate + 1,  # sat offset
+                        (loss_idx + 1) * (0.8 / (cnt_loss + 1)) - 0.4,  # loss shift within [-0.4; +0.4]
+                        get_point_type(point_map, loss),
+                        get_line_color(line_map, loss),
+                        loss * 100
+                    )
+                    for loss_idx, loss in enumerate(gdf['loss'].unique())
+                ]
+                g.plot_data(gdf, *plot_cmds)
+
+
 def analyze_all(parsed_results: dict, out_dir="."):
     logger.info("Analyzing goodput")
     goodput_cols = ['protocol', 'pep', 'sat', 'rate', 'loss', 'queue', 'txq', 'run', 'second']
@@ -581,3 +689,13 @@ def analyze_all(parsed_results: dict, out_dir="."):
     rtt_cols = ['sat', 'rate', 'loss', 'queue', 'txq', 'seq', 'rtt']
     df_rtt = parsed_results['ping_raw'][rtt_cols]
     analyze_rtt(df_rtt, out_dir)
+
+    logger.info("Analyzing TTFB")
+    df_con_times = pd.concat([
+        parsed_results['quic_times'],
+        parsed_results['tcp_times'],
+    ], axis=0, ignore_index=True)
+    analyze_connection_times(df_con_times, out_dir, time_val='ttfb')
+
+    logger.info("Analyzing connection establishment")
+    analyze_connection_times(df_con_times, out_dir, time_val='con_est')
