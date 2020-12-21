@@ -9,12 +9,6 @@ import json
 from enum import Enum
 from analyze import analyze_all
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-handler = logging.StreamHandler(sys.stdout)
-handler.setLevel(logging.DEBUG)
-logger.addHandler(handler)
-
 
 class Mode(Enum):
     PARSE = 1
@@ -421,41 +415,20 @@ def extend_df(df, protocol, pep, sat, rate, loss, queue, txq):
     return df
 
 
-def fix_column_dtypes(df):
-    """
-    Ensures that the data types of each column are correct. Converts the data if necessary.
-    :param df:
-    :return:
-    """
-
-    numerics = {'rate', 'loss', 'queue', 'txq', 'run', 'second', 'bytes', 'cwnd', 'packets_sent', 'packets_received',
-                'packets_lost', 'measured_loss', 'bps', 'rtt', 'rtt_min', 'rtt_avg', 'rtt_max', 'rtt_mdev', 'ttl',
-                'seq'}
-    booleans = {'pep'}
-
-    cols = df.columns.to_list()
-    for col_name in numerics.intersection(cols):
-        df[col_name] = pd.to_numeric(df[col_name])
-    for col_name in booleans.intersection(cols):
-        df[col_name] = df[col_name].astype(bool)
-
-    return df
-
-
 def parse(in_dir="~/measure"):
     logger.info("Parsing measurement results in '%s'", in_dir)
     df_quic_client = pd.DataFrame(columns=['protocol', 'pep', 'sat', 'rate', 'loss', 'queue', 'txq',
                                            'run', 'second', 'bps', 'bytes', 'packets_received'])
     df_quic_server = pd.DataFrame(columns=['protocol', 'pep', 'sat', 'rate', 'loss', 'queue', 'txq',
                                            'run', 'second', 'cwnd', 'packets_sent', 'packets_lost'])
-    df_quic_ttfb = pd.DataFrame(columns=['protocol', 'pep', 'sat', 'rate', 'loss', 'queue', 'txq',
-                                         'run', 'con_est', 'ttfb'])
+    df_quic_times = pd.DataFrame(columns=['protocol', 'pep', 'sat', 'rate', 'loss', 'queue', 'txq',
+                                          'run', 'con_est', 'ttfb'])
     df_tcp_client = pd.DataFrame(columns=['protocol', 'pep', 'sat', 'rate', 'loss', 'queue', 'txq',
                                           'run', 'second', 'bps', 'bytes', 'omitted'])
     df_tcp_server = pd.DataFrame(columns=['protocol', 'pep', 'sat', 'rate', 'loss', 'queue', 'txq',
                                           'run', 'second', 'cwnd', 'bps', 'bytes', 'packets_lost', 'rtt', 'omitted'])
-    df_tcp_ttfb = pd.DataFrame(columns=['protocol', 'pep', 'sat', 'rate', 'loss', 'queue', 'txq',
-                                        'run', 'con_est', 'ttfb'])
+    df_tcp_times = pd.DataFrame(columns=['protocol', 'pep', 'sat', 'rate', 'loss', 'queue', 'txq',
+                                         'run', 'con_est', 'ttfb'])
     df_ping_raw = pd.DataFrame(columns=['protocol', 'pep', 'sat', 'rate', 'loss', 'queue', 'txq',
                                         'seq', 'ttl', 'rtt'])
     df_ping_summary = pd.DataFrame(columns=['protocol', 'pep', 'sat', 'rate', 'loss', 'queue', 'txq',
@@ -487,7 +460,7 @@ def parse(in_dir="~/measure"):
             df = parse_quic_ttfb(path, pep=pep)
             if df is not None:
                 df = extend_df(df, 'quic', pep, sat, rate, loss, queue, txq)
-                df_quic_ttfb = df_quic_ttfb.append(df, ignore_index=True)
+                df_quic_times = df_quic_times.append(df, ignore_index=True)
             else:
                 logger.warning("No data QUIC%s ttfb data in %s" % (" (PEP)" if pep else "", folder_name))
 
@@ -511,7 +484,7 @@ def parse(in_dir="~/measure"):
             df = parse_tcp_ttfb(path, pep=pep)
             if df is not None:
                 df = extend_df(df, 'tcp', pep, sat, rate, loss, queue, txq)
-                df_tcp_ttfb = df_tcp_ttfb.append(df, ignore_index=True)
+                df_tcp_times = df_tcp_times.append(df, ignore_index=True)
             else:
                 logger.warning("No data TCP%s ttfb data in %s" % (" (PEP)" if pep else "", folder_name))
 
@@ -526,20 +499,22 @@ def parse(in_dir="~/measure"):
 
     # Fix data types
     logger.info("Fixing data types")
-    fix_column_dtypes(df_quic_client)
-    fix_column_dtypes(df_quic_server)
-    fix_column_dtypes(df_tcp_client)
-    fix_column_dtypes(df_tcp_server)
-    fix_column_dtypes(df_ping_raw)
-    fix_column_dtypes(df_ping_summary)
+    df_quic_client = df_quic_client.convert_dtypes()
+    df_quic_server = df_quic_server.convert_dtypes()
+    df_quic_times = df_quic_times.convert_dtypes()
+    df_tcp_client = df_tcp_client.convert_dtypes()
+    df_tcp_server = df_tcp_server.convert_dtypes()
+    df_tcp_times = df_tcp_times.convert_dtypes()
+    df_ping_raw = df_ping_raw.convert_dtypes()
+    df_ping_summary = df_ping_summary.convert_dtypes()
 
     return {
         'quic_client': df_quic_client,
         'quic_server': df_quic_server,
-        'quic_ttfb': df_quic_ttfb,
+        'quic_times': df_quic_times,
         'tcp_client': df_tcp_client,
         'tcp_server': df_tcp_server,
-        'tcp_ttfb': df_tcp_ttfb,
+        'tcp_times': df_tcp_times,
         'ping_raw': df_ping_raw,
         'ping_summary': df_ping_summary
     }
@@ -570,6 +545,19 @@ def parse_args(argv):
 
 
 def main(argv):
+    global logger
+
+    try:
+        logger
+    except NameError:
+        # No logger defined
+        logger = logging.getLogger(__name__)
+        logger.setLevel(logging.DEBUG)
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setLevel(logging.DEBUG)
+        handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s'))
+        logger.addHandler(handler)
+
     in_dir, out_dir, mode = parse_args(argv)
 
     if not os.path.exists(out_dir):
