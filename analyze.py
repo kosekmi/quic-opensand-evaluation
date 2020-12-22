@@ -10,6 +10,8 @@ POINT_TYPES = [2, 4, 8, 10, 6, 12]
 
 GRAPH_PLOT_SIZE_CM = (18, 6)
 VALUE_PLOT_SIZE_CM = (12, 8)
+MATRIX_KEY_SIZE = 0.12
+MATRIX_SIZE_SKEW = 0.7
 
 global logger
 try:
@@ -138,9 +140,10 @@ def analyze_goodput_matrix(df: pd.DataFrame, out_dir: str):
     for queue in df['queue'].unique():
         sat_cnt = float(len(df['sat'].unique()))
         rate_cnt = float(len(df['rate'].unique()))
-        sub_size = "%f, %f" % (1.0 / sat_cnt, 1.0 / rate_cnt)
+        sub_size = "%f, %f" % ((1.0 - MATRIX_KEY_SIZE) / sat_cnt, 1.0 / rate_cnt)
 
         subfigures = []
+        key_data = set()
 
         # Generate subfigures
         for sat_idx, sat in enumerate(sorted(df['sat'].unique(), key=sat_key)):
@@ -185,25 +188,56 @@ def analyze_goodput_matrix(df: pd.DataFrame, out_dir: str):
                     for index, (_, protocol, pep, loss) in enumerate(gdata)
                 ]
 
+                # Add data for key
+                for _, protocol, pep, loss in gdata:
+                    key_data.add((protocol, pep, loss))
+
                 sub = gnuplot.make_plot_data(
                     plot_df,
                     *plot_cmds,
                     title='"%s - %.0f Mbit/s"' % (sat, rate),
-                    key='outside right center vertical samplen 2',
+                    key='off',
                     ylabel='"Goodput (kbps)"',
                     xlabel='"Time (s)"',
                     xrange='[0:30]',
                     yrange='[0:%d]' % (rate * 2000,),
                     pointsize='0.5',
                     size=sub_size,
-                    origin="%f, %f" % (sat_idx / sat_cnt, rate_idx / rate_cnt)
+                    origin="%f, %f" % (sat_idx * (1.0 - MATRIX_KEY_SIZE) / sat_cnt, rate_idx / rate_cnt)
                 )
                 subfigures.append(sub)
+
+        # Null plot to add key
+        key_cmds = [
+            "NaN with linespoints pointtype %d linecolor '%s' title '%s%s l=%.2f%%'" %
+            (
+                get_point_type(point_map, loss),
+                get_line_color(line_map, (protocol, pep)),
+                protocol.upper(),
+                " (PEP)" if pep else "",
+                loss * 100
+            )
+            for protocol, pep, loss in sorted(key_data)
+        ]
+        subfigures.append(gnuplot.make_plot(
+            *key_cmds,
+            key='inside center vertical samplen 2',
+            pointsize='0.5',
+            size="%f, 1" % MATRIX_KEY_SIZE,
+            origin="%f, 0" % (1.0 - MATRIX_KEY_SIZE),
+            title=None,
+            xtics=None,
+            ytics=None,
+            xlabel=None,
+            ylabel=None,
+            border=None,
+        ))
 
         gnuplot.multiplot(
             *subfigures,
             title='"Goodput Evolution - BDP*%d"' % queue,
-            term='pdf size %dcm, %dcm' % (GRAPH_PLOT_SIZE_CM[0] * sat_cnt, GRAPH_PLOT_SIZE_CM[1] * rate_cnt),
+            term='pdf size %dcm, %dcm' %
+                 (GRAPH_PLOT_SIZE_CM[0] * MATRIX_SIZE_SKEW * sat_cnt, GRAPH_PLOT_SIZE_CM[1] * rate_cnt),
             output='"%s"' % os.path.join(out_dir, "matrix_goodput_q%d.pdf" % queue),
         )
 
@@ -225,8 +259,7 @@ def analyze_cwnd_evo(df: pd.DataFrame, out_dir: str):
                                     xlabel='"Time (s)"',
                                     xrange='[0:30]',
                                     term="pdf size %dcm, %dcm" % GRAPH_PLOT_SIZE_CM,
-                                    out='"%s"' % os.path.join(out_dir,
-                                                              "cwnd_evo_%s_r%s_q%d.pdf" % (sat, rate, queue)),
+                                    out='"%s"' % os.path.join(out_dir, "cwnd_evo_%s_r%s_q%d.pdf" % (sat, rate, queue)),
                                     pointsize='0.5')
 
                 # Filter only data relevant for graph
@@ -280,9 +313,10 @@ def analyze_cwnd_evo_matrix(df: pd.DataFrame, out_dir: str):
     for queue in df['queue'].unique():
         sat_cnt = float(len(df['sat'].unique()))
         rate_cnt = float(len(df['rate'].unique()))
-        sub_size = "%f, %f" % (1.0 / sat_cnt, 1.0 / rate_cnt)
+        sub_size = "%f, %f" % ((1.0 - MATRIX_KEY_SIZE) / sat_cnt, 1.0 / rate_cnt)
 
         subfigures = []
+        key_data = set()
 
         # Generate subfigures
         for sat_idx, sat in enumerate(sorted(df['sat'].unique(), key=sat_key)):
@@ -327,25 +361,56 @@ def analyze_cwnd_evo_matrix(df: pd.DataFrame, out_dir: str):
                     for index, (_, protocol, pep, loss) in enumerate(gdata)
                 ]
 
+                # Add data for key
+                for _, protocol, pep, loss in gdata:
+                    key_data.add((protocol, pep, loss))
+
                 sub = gnuplot.make_plot_data(
                     plot_df,
                     *plot_cmds,
                     title='"%s - %.0f Mbit/s"' % (sat, rate),
-                    key='outside right center vertical samplen 2',
+                    key='off',
                     ylabel='"Congestion window (KB)"',
                     xlabel='"Time (s)"',
                     xrange='[0:30]',
                     yrange='[0:%d]' % (rate * 3000,),
                     pointsize='0.5',
                     size=sub_size,
-                    origin="%f, %f" % (sat_idx / sat_cnt, rate_idx / rate_cnt)
+                    origin="%f, %f" % (sat_idx * (1.0 - MATRIX_KEY_SIZE) / sat_cnt, rate_idx / rate_cnt)
                 )
                 subfigures.append(sub)
+
+        # Null plot to add key
+        key_cmds = [
+            "NaN with linespoints pointtype %d linecolor '%s' title '%s%s l=%.2f%%'" %
+            (
+                get_point_type(point_map, loss),
+                get_line_color(line_map, (protocol, pep)),
+                protocol.upper(),
+                " (PEP)" if pep else "",
+                loss * 100
+            )
+            for protocol, pep, loss in sorted(key_data)
+        ]
+        subfigures.append(gnuplot.make_plot(
+            *key_cmds,
+            key='inside center vertical samplen 2',
+            pointsize='0.5',
+            size="%f, 1" % MATRIX_KEY_SIZE,
+            origin="%f, 0" % (1.0 - MATRIX_KEY_SIZE),
+            title=None,
+            xtics=None,
+            ytics=None,
+            xlabel=None,
+            ylabel=None,
+            border=None,
+        ))
 
         gnuplot.multiplot(
             *subfigures,
             title='"Congestion window evolution - BDP*%d"' % queue,
-            term='pdf size %dcm, %dcm' % (GRAPH_PLOT_SIZE_CM[0] * sat_cnt, GRAPH_PLOT_SIZE_CM[1] * rate_cnt),
+            term='pdf size %dcm, %dcm' %
+                 (GRAPH_PLOT_SIZE_CM[0] * MATRIX_SIZE_SKEW * sat_cnt, GRAPH_PLOT_SIZE_CM[1] * rate_cnt),
             output='"%s"' % os.path.join(out_dir, "matrix_cwnd_evo_q%d.pdf" % queue),
         )
 
@@ -423,9 +488,10 @@ def analyze_packet_loss_matrix(df: pd.DataFrame, out_dir: str):
     for queue in df['queue'].unique():
         sat_cnt = float(len(df['sat'].unique()))
         rate_cnt = float(len(df['rate'].unique()))
-        sub_size = "%f, %f" % (1.0 / sat_cnt, 1.0 / rate_cnt)
+        sub_size = "%f, %f" % ((1.0 - MATRIX_KEY_SIZE) / sat_cnt, 1.0 / rate_cnt)
 
         subfigures = []
+        key_data = set()
 
         # Generate subfigures
         for rate_idx, rate in enumerate(sorted(df['rate'].unique(), reverse=True)):
@@ -471,6 +537,10 @@ def analyze_packet_loss_matrix(df: pd.DataFrame, out_dir: str):
                     for index, (_, protocol, pep, loss) in enumerate(gdata)
                 ]
 
+                # Add data for key
+                for _, protocol, pep, loss in gdata:
+                    key_data.add((protocol, pep, loss))
+
                 sub = gnuplot.make_plot_data(
                     plot_df,
                     *plot_cmds,
@@ -480,16 +550,43 @@ def analyze_packet_loss_matrix(df: pd.DataFrame, out_dir: str):
                     xrange='[0:30]',
                     yrange='[0:%d]' % (ymax,),
                     pointsize='0.5',
-                    key='outside right center vertical samplen 2',
+                    key='off',
                     size=sub_size,
-                    origin="%f, %f" % (sat_idx / sat_cnt, rate_idx / rate_cnt)
+                    origin="%f, %f" % (sat_idx * (1.0 - MATRIX_KEY_SIZE) / sat_cnt, rate_idx / rate_cnt)
                 )
                 subfigures.append(sub)
+
+        # Null plot to add key
+        key_cmds = [
+            "NaN with linespoints pointtype %d linecolor '%s' title '%s%s l=%.2f%%'" %
+            (
+                get_point_type(point_map, loss),
+                get_line_color(line_map, (protocol, pep)),
+                protocol.upper(),
+                " (PEP)" if pep else "",
+                loss * 100
+            )
+            for protocol, pep, loss in sorted(key_data)
+        ]
+        subfigures.append(gnuplot.make_plot(
+            *key_cmds,
+            key='inside center vertical samplen 2',
+            pointsize='0.5',
+            size="%f, 1" % MATRIX_KEY_SIZE,
+            origin="%f, 0" % (1.0 - MATRIX_KEY_SIZE),
+            title=None,
+            xtics=None,
+            ytics=None,
+            xlabel=None,
+            ylabel=None,
+            border=None,
+        ))
 
         gnuplot.multiplot(
             *subfigures,
             title='"Packet loss - BDP*%d"' % queue,
-            term='pdf size %dcm, %dcm' % (GRAPH_PLOT_SIZE_CM[0] * sat_cnt, GRAPH_PLOT_SIZE_CM[1] * rate_cnt),
+            term='pdf size %dcm, %dcm' %
+                 (GRAPH_PLOT_SIZE_CM[0] * MATRIX_SIZE_SKEW * sat_cnt, GRAPH_PLOT_SIZE_CM[1] * rate_cnt),
             output='"%s"' % os.path.join(out_dir, "matrix_packet_loss_q%d.pdf" % queue),
         )
 
