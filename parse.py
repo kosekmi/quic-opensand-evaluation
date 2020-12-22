@@ -428,7 +428,7 @@ def fix_dtypes(df):
         'pep': np.bool,
         'sat': np.str,
         'rate': np.int32,
-        'loss': np.float32,
+        'loss': float,
         'queue': np.int32,
         'txq': np.int32,
         'run': np.int32,

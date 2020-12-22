@@ -572,42 +572,33 @@ def analyze_connection_times(df: pd.DataFrame, out_dir: str, time_val: str):
                 gdf = gdf.groupby(['sat', 'rate', 'loss']).describe(percentiles=[0.05, 0.95])
                 # Flatten column names
                 gdf.columns = [cname for _, cname in gdf.columns]
-                # Move index back to columns
-                gdf.reset_index(inplace=True)
-                gdf = gdf[['sat', 'rate', 'loss', 'mean', '5%', '95%']]
+                # Filter relevant columns
+                gdf = gdf[['mean', '5%', '95%']]
 
                 # Make sure that all combinations of sat, rate and loss exists (needed for gnuplot commands)
-                for sat in gdf['sat'].unique():
-                    for rate in gdf['rate'].unique():
-                        for loss in gdf['loss'].unique():
-                            gdf_slice = gdf.loc[
-                                (df['sat'] == sat) &
-                                (df['rate'] == rate) &
-                                (df['loss'] == loss)
-                            ]
-                            if gdf_slice.empty:
-                                gdf = gdf.append({
-                                    'sat': sat,
-                                    'rate': rate,
-                                    'loss': loss,
-                                    'mean': np.nan,
-                                    '5%': np.nan,
-                                    '95%': np.nan
-                                }, ignore_index=True)
+                # Generate a df with all combinations and NaN values, then update with real values keeping
+                # NaN's where there are no data in gdf
+                full_idx = pd.MultiIndex.from_product(gdf.index.levels)
+                full_gdf = pd.DataFrame(index=full_idx, columns=gdf.columns)
+                full_gdf.update(gdf)
+
+                # Move index back to columns
+                full_gdf.reset_index(inplace=True)
+
                 # Generate indexes used to calculate x coordinate in plot
-                sat_idx = sorted(gdf['sat'].unique(), key=sat_key)
-                gdf['sat_idx'] = gdf['sat'].apply(lambda x: sat_idx.index(x))
-                rate_idx = sorted(gdf['rate'].unique())
-                gdf['rate_idx'] = gdf['rate'].apply(lambda x: rate_idx.index(x))
-                gdf.sort_values(by=['sat_idx', 'rate_idx', 'loss'], inplace=True, ignore_index=True)
-                gdf = gdf[['sat', 'sat_idx', 'rate', 'rate_idx', 'loss', 'mean', '5%', '95%']]
+                sat_idx = sorted(full_gdf['sat'].unique(), key=sat_key)
+                full_gdf['sat_idx'] = full_gdf['sat'].apply(lambda x: sat_idx.index(x))
+                rate_idx = sorted(full_gdf['rate'].unique())
+                full_gdf['rate_idx'] = full_gdf['rate'].apply(lambda x: rate_idx.index(x))
+                full_gdf.sort_values(by=['sat_idx', 'rate_idx', 'loss'], inplace=True, ignore_index=True)
+                full_gdf = full_gdf[['sat', 'sat_idx', 'rate', 'rate_idx', 'loss', 'mean', '5%', '95%']]
 
                 # Create graph
-                cnt_loss = len(gdf['loss'].unique())
-                cnt_rate = len(gdf['rate'].unique())
-                cnt_sat = len(gdf['sat'].unique())
+                cnt_loss = len(full_gdf['loss'].unique())
+                cnt_rate = len(full_gdf['rate'].unique())
+                cnt_sat = len(full_gdf['sat'].unique())
                 x_max = (cnt_rate + 1) * cnt_sat
-                y_max = np.ceil(gdf['95%'].max() / 1000.0) * 1000
+                y_max = np.ceil(full_gdf['95%'].max() / 1000.0) * 1000
 
                 plot_title = "Unknown"
                 if time_val == 'ttfb':
@@ -626,15 +617,20 @@ def analyze_connection_times(df: pd.DataFrame, out_dir: str, time_val: str):
                                     term="pdf size %dcm, %dcm" % VALUE_PLOT_SIZE_CM,
                                     out='"%s"' % os.path.join(out_dir, "%s_%s%s_q%d.pdf" %
                                                               (time_val, protocol, "_pep" if pep else "", queue)),
-                                    pointsize='0.5',
-                                    xtics='1')
+                                    pointsize='0.5')
                 # Add labels for satellite types
-                for sat in gdf['sat'].unique():
+                for sat in full_gdf['sat'].unique():
                     g.set(label='"%s" at %f,%f center' % (
                         sat.upper(),
                         (sat_idx.index(sat) + 0.5) * (cnt_rate + 1),
                         y_max * 0.075
                     ))
+                # Add xtics for rates
+                g.set(xtics='(%s)' % ", ".join([
+                    '"%d" %d' % (rate, s_idx * (cnt_rate + 1) + rate_idx.index(rate) + 1)
+                    for rate in full_gdf['rate'].unique()
+                    for s_idx in range(cnt_sat)
+                ]))
 
                 plot_cmds = [
                     # using: select values for error bars (x:y:y_low:y_high)
@@ -644,13 +640,14 @@ def analyze_connection_times(df: pd.DataFrame, out_dir: str, time_val: str):
                         loss_idx,  # start point
                         cnt_rate + 1,  # sat offset
                         (loss_idx + 1) * (0.8 / (cnt_loss + 1)) - 0.4,  # loss shift within [-0.4; +0.4]
-                        get_point_type(point_map, loss),
+                        get_point_type(point_map, None),
                         get_line_color(line_map, loss),
                         loss * 100
                     )
-                    for loss_idx, loss in enumerate(gdf['loss'].unique())
+                    for loss_idx, loss in enumerate(full_gdf['loss'].unique())
                 ]
-                g.plot_data(gdf, *plot_cmds)
+
+                g.plot_data(full_gdf, *plot_cmds)
 
 
 def analyze_all(parsed_results: dict, out_dir="."):
