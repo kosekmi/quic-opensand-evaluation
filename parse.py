@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import os.path
 import pandas as pd
+import numpy as np
 import sys
 import getopt
 import re
@@ -415,6 +416,45 @@ def extend_df(df, protocol, pep, sat, rate, loss, queue, txq):
     return df
 
 
+def fix_dtypes(df):
+    """
+    Fix the data types of the columns in a data frame.
+    :param df: The dataframe to fix
+    :return:
+    """
+
+    dtypes = {
+        'protocol': np.str,
+        'pep': np.bool,
+        'sat': np.str,
+        'rate': np.int32,
+        'loss': np.float32,
+        'queue': np.int32,
+        'txq': np.int32,
+        'run': np.int32,
+        'second': np.int32,
+        'bps': np.float64,
+        'bytes': np.int32,
+        'packets_received': np.int32,
+        'cwnd': np.int32,
+        'packets_sent': np.int32,
+        'packets_lost': np.int32,
+        'con_est': np.float64,
+        'ttfb': np.float64,
+        'omitted': np.bool,
+        'rtt': np.int32,
+        'seq': np.int32,
+        'ttl': np.int32,
+        'rtt_min': np.float32,
+        'rtt_avg': np.float32,
+        'rtt_max': np.float32,
+        'rtt_mdev': np.float32,
+    }
+    cols = set(df.columns).intersection(dtypes.keys())
+
+    return df.astype({col_name: dtypes[col_name] for col_name in cols})
+
+
 def parse(in_dir="~/measure"):
     logger.info("Parsing measurement results in '%s'", in_dir)
     df_quic_client = pd.DataFrame(columns=['protocol', 'pep', 'sat', 'rate', 'loss', 'queue', 'txq',
@@ -499,14 +539,14 @@ def parse(in_dir="~/measure"):
 
     # Fix data types
     logger.info("Fixing data types")
-    df_quic_client = df_quic_client.convert_dtypes()
-    df_quic_server = df_quic_server.convert_dtypes()
-    df_quic_times = df_quic_times.convert_dtypes()
-    df_tcp_client = df_tcp_client.convert_dtypes()
-    df_tcp_server = df_tcp_server.convert_dtypes()
-    df_tcp_times = df_tcp_times.convert_dtypes()
-    df_ping_raw = df_ping_raw.convert_dtypes()
-    df_ping_summary = df_ping_summary.convert_dtypes()
+    df_quic_client = fix_dtypes(df_quic_client)
+    df_quic_server = fix_dtypes(df_quic_server)
+    df_quic_times = fix_dtypes(df_quic_times)
+    df_tcp_client = fix_dtypes(df_tcp_client)
+    df_tcp_server = fix_dtypes(df_tcp_server)
+    df_tcp_times = fix_dtypes(df_tcp_times)
+    df_ping_raw = fix_dtypes(df_ping_raw)
+    df_ping_summary = fix_dtypes(df_ping_summary)
 
     return {
         'quic_client': df_quic_client,
