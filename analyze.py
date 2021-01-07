@@ -207,6 +207,11 @@ def analyze_goodput_matrix(df: pd.DataFrame, out_dir: str):
                 )
                 subfigures.append(sub)
 
+        # Check if a matrix plot is useful
+        if len(subfigures) <= 1:
+            logger.debug("Skipping goodput matrix plot for q=%d, not enough individual runs", queue)
+            continue
+
         # Null plot to add key
         key_cmds = [
             "NaN with linespoints pointtype %d linecolor '%s' title '%s%s l=%.2f%%'" %
@@ -379,6 +384,11 @@ def analyze_cwnd_evo_matrix(df: pd.DataFrame, out_dir: str):
                     origin="%f, %f" % (sat_idx * (1.0 - MATRIX_KEY_SIZE) / sat_cnt, rate_idx / rate_cnt)
                 )
                 subfigures.append(sub)
+
+        # Check if a matrix plot is useful
+        if len(subfigures) <= 1:
+            logger.debug("Skipping congestion window evolution matrix plot for q=%d, not enough individual runs", queue)
+            continue
 
         # Null plot to add key
         key_cmds = [
@@ -555,6 +565,11 @@ def analyze_packet_loss_matrix(df: pd.DataFrame, out_dir: str):
                     origin="%f, %f" % (sat_idx * (1.0 - MATRIX_KEY_SIZE) / sat_cnt, rate_idx / rate_cnt)
                 )
                 subfigures.append(sub)
+
+        # Check if a matrix plot is useful
+        if len(subfigures) <= 1:
+            logger.debug("Skipping packet loss matrix plot for q=%d, not enough individual runs", queue)
+            continue
 
         # Null plot to add key
         key_cmds = [
