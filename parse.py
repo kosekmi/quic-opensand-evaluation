@@ -377,7 +377,7 @@ def measure_folders(root_folder):
             continue
 
         match = re.search(
-            r"^(GEO|MEO|LEO|NONE)_r(\d+)mbit_l(\d+(?:\.\d+)?)_q(\d+(?:\.\d+)?)(?:_txq(\d+))?$",
+            r"^(GEO|MEO|LEO|NONE)_r(\d+)mbit_l(\d+(?:\.\d+)?)_q(\d+(?:\.\d+)?)(?:_txq\d+)?$",
             folder_name)
         if not match:
             logger.info("Directory '%s' doesn't match, skipping", folder_name)
@@ -387,11 +387,10 @@ def measure_folders(root_folder):
         rate = int(match.group(2))
         loss = float(match.group(3)) / 100.0
         queue = float(match.group(4))
-        txq = int(match.group(5)) if match.group(5) else 1000
-        yield folder_name, sat, rate, loss, queue, txq
+        yield folder_name, sat, rate, loss, queue
 
 
-def extend_df(df, protocol, pep, sat, rate, loss, queue, txq):
+def extend_df(df, protocol, pep, sat, rate, loss, queue):
     """
     Extends the dataframe containing the data of a single file with the information gained from the file path. This puts
     the single measurement in the context of all measurements.
@@ -402,7 +401,6 @@ def extend_df(df, protocol, pep, sat, rate, loss, queue, txq):
     :param rate:
     :param loss:
     :param queue:
-    :param txq:
     :return:
     """
 
@@ -412,7 +410,6 @@ def extend_df(df, protocol, pep, sat, rate, loss, queue, txq):
     df['rate'] = rate
     df['loss'] = loss
     df['queue'] = queue
-    df['txq'] = txq
     return df
 
 
@@ -430,7 +427,6 @@ def fix_dtypes(df):
         'rate': np.int32,
         'loss': float,
         'queue': np.int32,
-        'txq': np.int32,
         'run': np.int32,
         'second': np.int32,
         'bps': np.float64,
@@ -457,25 +453,25 @@ def fix_dtypes(df):
 
 def parse(in_dir="~/measure"):
     logger.info("Parsing measurement results in '%s'", in_dir)
-    df_quic_client = pd.DataFrame(columns=['protocol', 'pep', 'sat', 'rate', 'loss', 'queue', 'txq',
+    df_quic_client = pd.DataFrame(columns=['protocol', 'pep', 'sat', 'rate', 'loss', 'queue',
                                            'run', 'second', 'bps', 'bytes', 'packets_received'])
-    df_quic_server = pd.DataFrame(columns=['protocol', 'pep', 'sat', 'rate', 'loss', 'queue', 'txq',
+    df_quic_server = pd.DataFrame(columns=['protocol', 'pep', 'sat', 'rate', 'loss', 'queue',
                                            'run', 'second', 'cwnd', 'packets_sent', 'packets_lost'])
-    df_quic_times = pd.DataFrame(columns=['protocol', 'pep', 'sat', 'rate', 'loss', 'queue', 'txq',
+    df_quic_times = pd.DataFrame(columns=['protocol', 'pep', 'sat', 'rate', 'loss', 'queue',
                                           'run', 'con_est', 'ttfb'])
-    df_tcp_client = pd.DataFrame(columns=['protocol', 'pep', 'sat', 'rate', 'loss', 'queue', 'txq',
+    df_tcp_client = pd.DataFrame(columns=['protocol', 'pep', 'sat', 'rate', 'loss', 'queue',
                                           'run', 'second', 'bps', 'bytes', 'omitted'])
-    df_tcp_server = pd.DataFrame(columns=['protocol', 'pep', 'sat', 'rate', 'loss', 'queue', 'txq',
+    df_tcp_server = pd.DataFrame(columns=['protocol', 'pep', 'sat', 'rate', 'loss', 'queue',
                                           'run', 'second', 'cwnd', 'bps', 'bytes', 'packets_lost', 'rtt', 'omitted'])
-    df_tcp_times = pd.DataFrame(columns=['protocol', 'pep', 'sat', 'rate', 'loss', 'queue', 'txq',
+    df_tcp_times = pd.DataFrame(columns=['protocol', 'pep', 'sat', 'rate', 'loss', 'queue',
                                          'run', 'con_est', 'ttfb'])
-    df_ping_raw = pd.DataFrame(columns=['protocol', 'pep', 'sat', 'rate', 'loss', 'queue', 'txq',
+    df_ping_raw = pd.DataFrame(columns=['protocol', 'pep', 'sat', 'rate', 'loss', 'queue',
                                         'seq', 'ttl', 'rtt'])
-    df_ping_summary = pd.DataFrame(columns=['protocol', 'pep', 'sat', 'rate', 'loss', 'queue', 'txq',
+    df_ping_summary = pd.DataFrame(columns=['protocol', 'pep', 'sat', 'rate', 'loss', 'queue',
                                             'packets_sent', 'packets_received', 'rtt_min', 'rtt_avg', 'rtt_max',
                                             'rtt_mdev'])
 
-    for folder_name, sat, rate, loss, queue, txq in measure_folders(in_dir):
+    for folder_name, sat, rate, loss, queue in measure_folders(in_dir):
         logger.info("Parsing files in %s", folder_name)
         path = os.path.join(in_dir, folder_name)
 
@@ -483,7 +479,7 @@ def parse(in_dir="~/measure"):
             # QUIC client
             df = parse_quic_client(path, pep=pep)
             if df is not None:
-                df = extend_df(df, 'quic', pep, sat, rate, loss, queue, txq)
+                df = extend_df(df, 'quic', pep, sat, rate, loss, queue)
                 df_quic_client = df_quic_client.append(df, ignore_index=True)
             else:
                 logger.warning("No data QUIC%s client data in %s" % (" (PEP)" if pep else "", folder_name))
@@ -491,7 +487,7 @@ def parse(in_dir="~/measure"):
             # QUIC server
             df = parse_quic_server(path, pep=pep)
             if df is not None:
-                df = extend_df(df, 'quic', pep, sat, rate, loss, queue, txq)
+                df = extend_df(df, 'quic', pep, sat, rate, loss, queue)
                 df_quic_server = df_quic_server.append(df, ignore_index=True)
             else:
                 logger.warning("No data QUIC%s server data in %s" % (" (PEP)" if pep else "", folder_name))
@@ -499,7 +495,7 @@ def parse(in_dir="~/measure"):
             # QUIC ttfb
             df = parse_quic_ttfb(path, pep=pep)
             if df is not None:
-                df = extend_df(df, 'quic', pep, sat, rate, loss, queue, txq)
+                df = extend_df(df, 'quic', pep, sat, rate, loss, queue)
                 df_quic_times = df_quic_times.append(df, ignore_index=True)
             else:
                 logger.warning("No data QUIC%s ttfb data in %s" % (" (PEP)" if pep else "", folder_name))
@@ -507,7 +503,7 @@ def parse(in_dir="~/measure"):
             # TCP client
             df = parse_tcp_client(path, pep=pep)
             if df is not None:
-                df = extend_df(df, 'tcp', pep, sat, rate, loss, queue, txq)
+                df = extend_df(df, 'tcp', pep, sat, rate, loss, queue)
                 df_tcp_client = df_tcp_client.append(df, ignore_index=True)
             else:
                 logger.warning("No data TCP%s client data in %s" % (" (PEP)" if pep else "", folder_name))
@@ -515,7 +511,7 @@ def parse(in_dir="~/measure"):
             # TCP server
             df = parse_tcp_server(path, pep=pep)
             if df is not None:
-                df = extend_df(df, 'tcp', pep, sat, rate, loss, queue, txq)
+                df = extend_df(df, 'tcp', pep, sat, rate, loss, queue)
                 df_tcp_server = df_tcp_server.append(df, ignore_index=True)
             else:
                 logger.warning("No data TCP%s server data in %s" % (" (PEP)" if pep else "", folder_name))
@@ -523,7 +519,7 @@ def parse(in_dir="~/measure"):
             # TCP ttfb
             df = parse_tcp_ttfb(path, pep=pep)
             if df is not None:
-                df = extend_df(df, 'tcp', pep, sat, rate, loss, queue, txq)
+                df = extend_df(df, 'tcp', pep, sat, rate, loss, queue)
                 df_tcp_times = df_tcp_times.append(df, ignore_index=True)
             else:
                 logger.warning("No data TCP%s ttfb data in %s" % (" (PEP)" if pep else "", folder_name))
@@ -531,7 +527,7 @@ def parse(in_dir="~/measure"):
         # Ping
         dfs = parse_ping(path)
         if dfs is not None:
-            dfs = [extend_df(df, 'icmp', False, sat, rate, loss, queue, txq) for df in dfs]
+            dfs = [extend_df(df, 'icmp', False, sat, rate, loss, queue) for df in dfs]
             df_ping_raw = df_ping_raw.append(dfs[0], ignore_index=True)
             df_ping_summary = df_ping_summary.append(dfs[1], ignore_index=True)
         else:

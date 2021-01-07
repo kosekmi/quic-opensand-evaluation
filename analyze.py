@@ -749,7 +749,7 @@ def analyze_connection_times(df: pd.DataFrame, out_dir: str, time_val: str):
 
 def analyze_all(parsed_results: dict, out_dir="."):
     logger.info("Analyzing goodput")
-    goodput_cols = ['protocol', 'pep', 'sat', 'rate', 'loss', 'queue', 'txq', 'run', 'second']
+    goodput_cols = ['protocol', 'pep', 'sat', 'rate', 'loss', 'queue', 'run', 'second']
     df_goodput_quic = pd.DataFrame(parsed_results['quic_client'][goodput_cols])
     df_goodput_tcp = pd.DataFrame(parsed_results['tcp_client'][goodput_cols])
     # Take the most accurate value for each of the protocols
@@ -762,7 +762,7 @@ def analyze_all(parsed_results: dict, out_dir="."):
     analyze_goodput_matrix(df_goodput, out_dir)
 
     logger.info("Analyzing congestion window evolution")
-    cwnd_evo_cols = ['protocol', 'pep', 'sat', 'rate', 'loss', 'queue', 'txq', 'run', 'second', 'cwnd']
+    cwnd_evo_cols = ['protocol', 'pep', 'sat', 'rate', 'loss', 'queue', 'run', 'second', 'cwnd']
     df_cwnd_evo = pd.concat([
         parsed_results['quic_server'][cwnd_evo_cols],
         parsed_results['tcp_server'][cwnd_evo_cols],
@@ -771,7 +771,7 @@ def analyze_all(parsed_results: dict, out_dir="."):
     analyze_cwnd_evo_matrix(df_cwnd_evo, out_dir)
 
     logger.info("Analyzing packet loss")
-    pkt_loss_cols = ['protocol', 'pep', 'sat', 'rate', 'loss', 'queue', 'txq', 'run', 'second', 'packets_lost']
+    pkt_loss_cols = ['protocol', 'pep', 'sat', 'rate', 'loss', 'queue', 'run', 'second', 'packets_lost']
     df_pkt_loss = pd.concat([
         parsed_results['quic_server'][pkt_loss_cols],
         parsed_results['tcp_server'][pkt_loss_cols],
@@ -780,7 +780,7 @@ def analyze_all(parsed_results: dict, out_dir="."):
     analyze_packet_loss_matrix(df_pkt_loss, out_dir)
 
     logger.info("Analyzing RTT")
-    rtt_cols = ['sat', 'rate', 'loss', 'queue', 'txq', 'seq', 'rtt']
+    rtt_cols = ['sat', 'rate', 'loss', 'queue', 'seq', 'rtt']
     df_rtt = parsed_results['ping_raw'][rtt_cols]
     analyze_rtt(df_rtt, out_dir)
 
