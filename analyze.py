@@ -131,6 +131,10 @@ def analyze_goodput(df: pd.DataFrame, out_dir: str):
 
                 g.plot_data(plot_df, *plot_cmds)
 
+                # Save plot data
+                plot_df.columns = plot_cmds
+                plot_df.to_csv(os.path.join(out_dir, "goodput_%s_r%s_q%d.csv" % (sat, rate, queue)))
+
 
 def analyze_goodput_matrix(df: pd.DataFrame, out_dir: str):
     # Ensures same point types and line colors across all graphs
@@ -308,6 +312,10 @@ def analyze_cwnd_evo(df: pd.DataFrame, out_dir: str):
                 ]
 
                 g.plot_data(plot_df, *plot_cmds)
+
+                # Save plot data
+                plot_df.columns = plot_cmds
+                plot_df.to_csv(os.path.join(out_dir, "cwnd_evo_%s_r%s_q%d.csv" % (sat, rate, queue)))
 
 
 def analyze_cwnd_evo_matrix(df: pd.DataFrame, out_dir: str):
@@ -489,6 +497,10 @@ def analyze_packet_loss(df: pd.DataFrame, out_dir: str):
 
                 g.plot_data(plot_df, *plot_cmds)
 
+                # Save plot data
+                plot_df.columns = plot_cmds
+                plot_df.to_csv(os.path.join(out_dir, "packet_loss_%s_r%s_q%d.csv" % (sat, rate, queue)))
+
 
 def analyze_packet_loss_matrix(df: pd.DataFrame, out_dir: str):
     # Ensures same point types and line colors across all graphs
@@ -663,6 +675,10 @@ def analyze_rtt(df: pd.DataFrame, out_dir: str):
 
                 g.plot_data(plot_df, *plot_cmds)
 
+                # Save plot data
+                plot_df.columns = plot_cmds
+                plot_df.to_csv(os.path.join(out_dir, "rtt_%s_r%s_q%d.csv" % (sat, rate, queue)))
+
 
 def analyze_connection_times(df: pd.DataFrame, out_dir: str, time_val: str):
     # Ensures same point types and line colors across all graphs
@@ -760,6 +776,13 @@ def analyze_connection_times(df: pd.DataFrame, out_dir: str, time_val: str):
                 ]
 
                 g.plot_data(full_gdf, *plot_cmds)
+
+                # Save plot data
+                full_gdf.to_csv(os.path.join(out_dir, "%s_%s%s_q%d.csv" %
+                                             (time_val, protocol, "_pep" if pep else "", queue)))
+                with open(os.path.join(out_dir, "%s_%s%s_q%d.gnuplot" %
+                                             (time_val, protocol, "_pep" if pep else "", queue)), 'w+') as f:
+                    f.write("\n".join(plot_cmds))
 
 
 def analyze_all(parsed_results: dict, out_dir="."):
