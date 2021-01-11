@@ -718,8 +718,8 @@ def analyze_connection_times(df: pd.DataFrame, out_dir: str, time_val: str):
                 full_gdf['sat_idx'] = full_gdf['sat'].apply(lambda x: sat_idx.index(x))
                 rate_idx = sorted(full_gdf['rate'].unique())
                 full_gdf['rate_idx'] = full_gdf['rate'].apply(lambda x: rate_idx.index(x))
-                full_gdf.sort_values(by=['sat_idx', 'rate_idx', 'loss'], inplace=True, ignore_index=True)
                 full_gdf = full_gdf[['sat', 'sat_idx', 'rate', 'rate_idx', 'loss', 'mean', '5%', '95%']]
+                full_gdf.sort_values(by=['sat_idx', 'rate_idx', 'loss'], inplace=True, ignore_index=True)
 
                 # Create graph
                 cnt_loss = len(full_gdf['loss'].unique())
@@ -765,7 +765,7 @@ def analyze_connection_times(df: pd.DataFrame, out_dir: str, time_val: str):
                     "every %d::%d using ($3*%d+$5+1+%f):7:8:9 with errorbars pointtype %d linecolor '%s' title '%.2f%%'" %
                     (
                         cnt_loss,  # point increment
-                        loss_idx,  # start point
+                        loss_idx + 1,  # start point
                         cnt_rate + 1,  # sat offset
                         (loss_idx + 1) * (0.8 / (cnt_loss + 1)) - 0.4,  # loss shift within [-0.4; +0.4]
                         get_point_type(point_map, None),
