@@ -11,6 +11,9 @@ from enum import Enum
 from analyze import analyze_all
 
 
+RAW_DATA_DIR = 'raw'
+
+
 class Mode(Enum):
     PARSE = 1
     ANALYZE = 2
@@ -451,6 +454,25 @@ def fix_dtypes(df):
     return df.astype({col_name: dtypes[col_name] for col_name in cols})
 
 
+def parse_config(in_dir: str):
+    configs = []
+
+    for folder in measure_folders(in_dir):
+        config = {
+            'name': folder[0]
+        }
+        with open(os.path.join(in_dir, folder[0], 'config.txt'), 'r') as f:
+            for line in f:
+                if '=' in line:
+                    key, value = line.split('=', 1)
+                    config[key.strip()] = value.strip()
+        configs.append(config)
+
+    df = pd.DataFrame(data=configs)
+    df.set_index('name', inplace=True)
+    return df
+
+
 def parse(in_dir="~/measure"):
     logger.info("Parsing measurement results in '%s'", in_dir)
     df_quic_client = pd.DataFrame(columns=['protocol', 'pep', 'sat', 'rate', 'loss', 'queue',
@@ -544,7 +566,10 @@ def parse(in_dir="~/measure"):
     df_ping_raw = fix_dtypes(df_ping_raw)
     df_ping_summary = fix_dtypes(df_ping_summary)
 
+    df_config = parse_config(in_dir)
+
     return {
+        'config': df_config,
         'quic_client': df_quic_client,
         'quic_server': df_quic_server,
         'quic_times': df_quic_times,
@@ -552,7 +577,7 @@ def parse(in_dir="~/measure"):
         'tcp_server': df_tcp_server,
         'tcp_times': df_tcp_times,
         'ping_raw': df_ping_raw,
-        'ping_summary': df_ping_summary
+        'ping_summary': df_ping_summary,
     }
 
 
@@ -611,17 +636,21 @@ def main(argv):
 
     if parsed_results is not None:
         logger.info("Saving results")
+        raw_dir = os.path.join(out_dir, RAW_DATA_DIR)
+        if not os.path.exists(raw_dir):
+            os.mkdir(raw_dir)
         for name in parsed_results:
-            parsed_results[name].to_pickle(os.path.join(out_dir, "%s.pkl" % name))
-            with open(os.path.join(out_dir, "%s.csv" % name), 'w+') as out_file:
+            parsed_results[name].to_pickle(os.path.join(raw_dir, "%s.pkl" % name))
+            with open(os.path.join(raw_dir, "%s.csv" % name), 'w+') as out_file:
                 parsed_results[name].to_csv(out_file)
 
     if mode.do_analyze():
         if parsed_results is None:
             logger.info("Loading parsed results")
             parsed_results = {}
-            for file_name in os.listdir(in_dir):
-                file = os.path.join(in_dir, file_name)
+            raw_dir = os.path.join(in_dir, RAW_DATA_DIR)
+            for file_name in os.listdir(raw_dir):
+                file = os.path.join(raw_dir, file_name)
                 if not os.path.isfile(file):
                     continue
 

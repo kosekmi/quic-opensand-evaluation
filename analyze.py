@@ -5,6 +5,9 @@ import sys
 import logging
 from pygnuplot import gnuplot
 
+GRAPH_DIR = 'graphs'
+DATA_DIR = 'data'
+
 LINE_COLORS = ['black', 'red', 'dark-violet', 'blue', 'dark-green', 'dark-orange']
 POINT_TYPES = [2, 4, 8, 10, 6, 12]
 
@@ -70,7 +73,19 @@ def sat_key(sat: str):
         return -1
 
 
+def create_output_dirs(out_dir: str):
+    graph_dir = os.path.join(out_dir, GRAPH_DIR)
+    data_dir = os.path.join(out_dir, DATA_DIR)
+
+    if not os.path.exists(graph_dir):
+        os.mkdir(graph_dir)
+    if not os.path.exists(data_dir):
+        os.mkdir(data_dir)
+
+
 def analyze_goodput(df: pd.DataFrame, out_dir: str):
+    create_output_dirs(out_dir)
+
     # Ensures same point types and line colors across all graphs
     point_map = {}
     line_map = {}
@@ -86,7 +101,8 @@ def analyze_goodput(df: pd.DataFrame, out_dir: str):
                                     xlabel='"Time (s)"',
                                     xrange='[0:30]',
                                     term="pdf size %dcm, %dcm" % GRAPH_PLOT_SIZE_CM,
-                                    out='"%s"' % os.path.join(out_dir, "goodput_%s_r%s_q%d.pdf" % (sat, rate, queue)),
+                                    out='"%s"' % os.path.join(out_dir, GRAPH_DIR,
+                                                              "goodput_%s_r%s_q%d.pdf" % (sat, rate, queue)),
                                     pointsize='0.5')
 
                 # Filter only data relevant for graph
@@ -133,10 +149,12 @@ def analyze_goodput(df: pd.DataFrame, out_dir: str):
 
                 # Save plot data
                 plot_df.columns = plot_cmds
-                plot_df.to_csv(os.path.join(out_dir, "goodput_%s_r%s_q%d.csv" % (sat, rate, queue)))
+                plot_df.to_csv(os.path.join(out_dir, DATA_DIR, "goodput_%s_r%s_q%d.csv" % (sat, rate, queue)))
 
 
 def analyze_goodput_matrix(df: pd.DataFrame, out_dir: str):
+    create_output_dirs(out_dir)
+
     # Ensures same point types and line colors across all graphs
     point_map = {}
     line_map = {}
@@ -247,11 +265,13 @@ def analyze_goodput_matrix(df: pd.DataFrame, out_dir: str):
             title='"Goodput Evolution - BDP*%d"' % queue,
             term='pdf size %dcm, %dcm' %
                  (GRAPH_PLOT_SIZE_CM[0] * MATRIX_SIZE_SKEW * sat_cnt, GRAPH_PLOT_SIZE_CM[1] * rate_cnt),
-            output='"%s"' % os.path.join(out_dir, "matrix_goodput_q%d.pdf" % queue),
+            output='"%s"' % os.path.join(out_dir, GRAPH_DIR, "matrix_goodput_q%d.pdf" % queue),
         )
 
 
 def analyze_cwnd_evo(df: pd.DataFrame, out_dir: str):
+    create_output_dirs(out_dir)
+
     # Ensures same point types and line colors across all graphs
     point_map = {}
     line_map = {}
@@ -268,7 +288,8 @@ def analyze_cwnd_evo(df: pd.DataFrame, out_dir: str):
                                     xlabel='"Time (s)"',
                                     xrange='[0:30]',
                                     term="pdf size %dcm, %dcm" % GRAPH_PLOT_SIZE_CM,
-                                    out='"%s"' % os.path.join(out_dir, "cwnd_evo_%s_r%s_q%d.pdf" % (sat, rate, queue)),
+                                    out='"%s"' % os.path.join(out_dir, GRAPH_DIR,
+                                                              "cwnd_evo_%s_r%s_q%d.pdf" % (sat, rate, queue)),
                                     pointsize='0.5')
 
                 # Filter only data relevant for graph
@@ -315,10 +336,12 @@ def analyze_cwnd_evo(df: pd.DataFrame, out_dir: str):
 
                 # Save plot data
                 plot_df.columns = plot_cmds
-                plot_df.to_csv(os.path.join(out_dir, "cwnd_evo_%s_r%s_q%d.csv" % (sat, rate, queue)))
+                plot_df.to_csv(os.path.join(out_dir, DATA_DIR, "cwnd_evo_%s_r%s_q%d.csv" % (sat, rate, queue)))
 
 
 def analyze_cwnd_evo_matrix(df: pd.DataFrame, out_dir: str):
+    create_output_dirs(out_dir)
+
     # Ensures same point types and line colors across all graphs
     point_map = {}
     line_map = {}
@@ -429,11 +452,13 @@ def analyze_cwnd_evo_matrix(df: pd.DataFrame, out_dir: str):
             title='"Congestion window evolution - BDP*%d"' % queue,
             term='pdf size %dcm, %dcm' %
                  (GRAPH_PLOT_SIZE_CM[0] * MATRIX_SIZE_SKEW * sat_cnt, GRAPH_PLOT_SIZE_CM[1] * rate_cnt),
-            output='"%s"' % os.path.join(out_dir, "matrix_cwnd_evo_q%d.pdf" % queue),
+            output='"%s"' % os.path.join(out_dir, GRAPH_DIR, "matrix_cwnd_evo_q%d.pdf" % queue),
         )
 
 
 def analyze_packet_loss(df: pd.DataFrame, out_dir: str):
+    create_output_dirs(out_dir)
+
     # Ensures same point types and line colors across all graphs
     point_map = {}
     line_map = {}
@@ -449,9 +474,8 @@ def analyze_packet_loss(df: pd.DataFrame, out_dir: str):
                                     xlabel='"Time (s)"',
                                     xrange='[0:30]',
                                     term="pdf size %dcm, %dcm" % GRAPH_PLOT_SIZE_CM,
-                                    out='"%s"' % os.path.join(out_dir,
-                                                              "packet_loss_%s_r%s_q%d.pdf" % (sat, rate, queue)
-                                                              ),
+                                    out='"%s"' % os.path.join(out_dir, GRAPH_DIR,
+                                                              "packet_loss_%s_r%s_q%d.pdf" % (sat, rate, queue)),
                                     pointsize='0.5')
 
                 # Filter only data relevant for graph
@@ -499,10 +523,12 @@ def analyze_packet_loss(df: pd.DataFrame, out_dir: str):
 
                 # Save plot data
                 plot_df.columns = plot_cmds
-                plot_df.to_csv(os.path.join(out_dir, "packet_loss_%s_r%s_q%d.csv" % (sat, rate, queue)))
+                plot_df.to_csv(os.path.join(out_dir, DATA_DIR, "packet_loss_%s_r%s_q%d.csv" % (sat, rate, queue)))
 
 
 def analyze_packet_loss_matrix(df: pd.DataFrame, out_dir: str):
+    create_output_dirs(out_dir)
+
     # Ensures same point types and line colors across all graphs
     point_map = {}
     line_map = {}
@@ -614,11 +640,13 @@ def analyze_packet_loss_matrix(df: pd.DataFrame, out_dir: str):
             title='"Packet loss - BDP*%d"' % queue,
             term='pdf size %dcm, %dcm' %
                  (GRAPH_PLOT_SIZE_CM[0] * MATRIX_SIZE_SKEW * sat_cnt, GRAPH_PLOT_SIZE_CM[1] * rate_cnt),
-            output='"%s"' % os.path.join(out_dir, "matrix_packet_loss_q%d.pdf" % queue),
+            output='"%s"' % os.path.join(out_dir, GRAPH_DIR, "matrix_packet_loss_q%d.pdf" % queue),
         )
 
 
 def analyze_rtt(df: pd.DataFrame, out_dir: str):
+    create_output_dirs(out_dir)
+
     # Ensures same point types and line colors across all graphs
     point_map = {}
     line_map = {}
@@ -633,7 +661,8 @@ def analyze_rtt(df: pd.DataFrame, out_dir: str):
                                     ylabel='"RTT (ms)"',
                                     xlabel='"Time (s)"',
                                     term="pdf size %dcm, %dcm" % GRAPH_PLOT_SIZE_CM,
-                                    out='"%s"' % os.path.join(out_dir, "rtt_%s_r%s_q%d.pdf" % (sat, rate, queue)),
+                                    out='"%s"' % os.path.join(out_dir, GRAPH_DIR,
+                                                              "rtt_%s_r%s_q%d.pdf" % (sat, rate, queue)),
                                     pointsize='0.5')
 
                 # Filter only data relevant for graph
@@ -677,10 +706,12 @@ def analyze_rtt(df: pd.DataFrame, out_dir: str):
 
                 # Save plot data
                 plot_df.columns = plot_cmds
-                plot_df.to_csv(os.path.join(out_dir, "rtt_%s_r%s_q%d.csv" % (sat, rate, queue)))
+                plot_df.to_csv(os.path.join(out_dir, DATA_DIR, "rtt_%s_r%s_q%d.csv" % (sat, rate, queue)))
 
 
 def analyze_connection_times(df: pd.DataFrame, out_dir: str, time_val: str):
+    create_output_dirs(out_dir)
+
     # Ensures same point types and line colors across all graphs
     point_map = {}
     line_map = {}
@@ -743,7 +774,7 @@ def analyze_connection_times(df: pd.DataFrame, out_dir: str, time_val: str):
                                     xrange="[0:%d]" % x_max,
                                     yrange="[0:%d]" % y_max,
                                     term="pdf size %dcm, %dcm" % VALUE_PLOT_SIZE_CM,
-                                    out='"%s"' % os.path.join(out_dir, "%s_%s%s_q%d.pdf" %
+                                    out='"%s"' % os.path.join(out_dir, GRAPH_DIR, "%s_%s%s_q%d.pdf" %
                                                               (time_val, protocol, "_pep" if pep else "", queue)),
                                     pointsize='0.5')
                 # Add labels for satellite types
@@ -778,10 +809,11 @@ def analyze_connection_times(df: pd.DataFrame, out_dir: str, time_val: str):
                 g.plot_data(full_gdf, *plot_cmds)
 
                 # Save plot data
-                full_gdf.to_csv(os.path.join(out_dir, "%s_%s%s_q%d.csv" %
+                full_gdf.to_csv(os.path.join(out_dir, DATA_DIR, "%s_%s%s_q%d.csv" %
                                              (time_val, protocol, "_pep" if pep else "", queue)))
-                with open(os.path.join(out_dir, "%s_%s%s_q%d.gnuplot" %
-                                             (time_val, protocol, "_pep" if pep else "", queue)), 'w+') as f:
+                with open(os.path.join(out_dir, DATA_DIR, "%s_%s%s_q%d.gnuplot" %
+                                                          (time_val, protocol, "_pep" if pep else "", queue)),
+                          'w+') as f:
                     f.write("\n".join(plot_cmds))
 
 
