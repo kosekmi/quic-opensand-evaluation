@@ -11,7 +11,7 @@ DATA_DIR = 'data'
 LINE_COLORS = ['black', 'red', 'dark-violet', 'blue', 'dark-green', 'dark-orange']
 POINT_TYPES = [2, 4, 8, 10, 6, 12]
 
-GRAPH_PLOT_SIZE_CM = (18, 6)
+GRAPH_PLOT_SIZE_CM = (18, 8)
 VALUE_PLOT_SIZE_CM = (12, 8)
 MATRIX_KEY_SIZE = 0.12
 MATRIX_SIZE_SKEW = 0.7
@@ -78,17 +78,21 @@ def create_output_dirs(out_dir: str):
     data_dir = os.path.join(out_dir, DATA_DIR)
 
     if not os.path.exists(graph_dir):
-        os.mkdir(graph_dir)
+        os.makedirs(graph_dir)
     if not os.path.exists(data_dir):
-        os.mkdir(data_dir)
+        os.makedirs(data_dir)
 
 
-def analyze_goodput(df: pd.DataFrame, out_dir: str):
+def analyze_goodput(df: pd.DataFrame, out_dir: str, extra_title_col: str = None):
     create_output_dirs(out_dir)
 
     # Ensures same point types and line colors across all graphs
     point_map = {}
     line_map = {}
+
+    if extra_title_col is None:
+        extra_title_col = 'default_extra_title'
+        df[extra_title_col] = ""
 
     # Generate graphs
     for sat in df['sat'].unique():
@@ -107,24 +111,25 @@ def analyze_goodput(df: pd.DataFrame, out_dir: str):
 
                 # Filter only data relevant for graph
                 gdf = df.loc[(df['sat'] == sat) & (df['rate'] == rate) & (df['queue'] == queue) & (df['second'] < 30)]
-                gdf = gdf[['protocol', 'pep', 'loss', 'second', 'bps']]
+                gdf = gdf[[extra_title_col, 'protocol', 'pep', 'loss', 'second', 'bps']]
                 # Calculate mean average per second over all runs
-                gdf = gdf.groupby(['protocol', 'pep', 'loss', 'second']).mean()
+                gdf = gdf.groupby([extra_title_col, 'protocol', 'pep', 'loss', 'second']).mean()
 
                 # Collect all variations of data
                 gdata = []
-                for protocol in df['protocol'].unique():
-                    for pep in df['pep'].unique():
-                        for loss in df['loss'].unique():
-                            try:
-                                line_df = gdf.loc[(protocol, pep, loss), 'bps']
-                            except KeyError:
-                                # Combination of protocol, pep and loss does not exist
-                                continue
-                            if line_df.empty:
-                                continue
-                            gdata.append((line_df, protocol, pep, loss))
-                gdata = sorted(gdata, key=lambda x: [x[1], x[2], x[3]])
+                for extra_title in df[extra_title_col].unique():
+                    for protocol in df['protocol'].unique():
+                        for pep in df['pep'].unique():
+                            for loss in df['loss'].unique():
+                                try:
+                                    line_df = gdf.loc[(extra_title, protocol, pep, loss), 'bps']
+                                except KeyError:
+                                    # Combination of protocol, pep and loss does not exist
+                                    continue
+                                if line_df.empty:
+                                    continue
+                                gdata.append((line_df, extra_title, protocol, pep, loss))
+                gdata = sorted(gdata, key=lambda x: [x[1], x[2], x[3], x[4]])
                 if len(gdata) == 0:
                     logger.debug("No data for graph (sat=%s, rate=%dmbps, queue=%d)" % (sat, rate, queue))
                     continue
@@ -133,16 +138,17 @@ def analyze_goodput(df: pd.DataFrame, out_dir: str):
                 plot_df = pd.concat([x[0] for x in gdata], axis=1)
                 # Generate gnuplot commands
                 plot_cmds = [
-                    "using 1:($%d/1000) with linespoints pointtype %d linecolor '%s' title '%s%s l=%.2f%%'" %
+                    "using 1:($%d/1000) with linespoints pointtype %d linecolor '%s' title '%s%s%s l=%.2f%%'" %
                     (
                         index + 2,
                         get_point_type(point_map, loss),
-                        get_line_color(line_map, (protocol, pep)),
+                        get_line_color(line_map, (extra_title, protocol, pep)),
+                        extra_title if len(extra_title) == 0 else ("%s " % extra_title),
                         protocol.upper(),
                         " (PEP)" if pep else "",
                         loss * 100
                     )
-                    for index, (_, protocol, pep, loss) in enumerate(gdata)
+                    for index, (_, extra_title, protocol, pep, loss) in enumerate(gdata)
                 ]
 
                 g.plot_data(plot_df, *plot_cmds)
