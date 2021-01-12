@@ -8,8 +8,8 @@ from pygnuplot import gnuplot
 GRAPH_DIR = 'graphs'
 DATA_DIR = 'data'
 
-LINE_COLORS = ['black', 'red', 'dark-violet', 'blue', 'dark-green', 'dark-orange']
-POINT_TYPES = [2, 4, 8, 10, 6, 12]
+LINE_COLORS = ['black', 'red', 'dark-violet', 'blue', 'dark-green', 'dark-orange', 'gold', 'cyan']
+POINT_TYPES = [2, 4, 8, 10, 6, 12, 9, 11]
 
 GRAPH_PLOT_SIZE_CM = (22, 8)
 VALUE_PLOT_SIZE_CM = (12, 8)
@@ -40,7 +40,7 @@ def get_point_type(pmap: dict, val: any):
     if val not in pmap:
         idx = len(pmap)
         # Use default value if more point types than specified are requested
-        pmap[val] = 3 if idx > len(POINT_TYPES) else POINT_TYPES[idx]
+        pmap[val] = 7 if idx >= len(POINT_TYPES) else POINT_TYPES[idx]
 
     return pmap[val]
 
@@ -56,7 +56,7 @@ def get_line_color(lmap: dict, val: any):
     if val not in lmap:
         idx = len(lmap)
         # Use default value if more line colors than specified are requested
-        lmap[val] = 'gray' if idx > len(LINE_COLORS) else LINE_COLORS[idx]
+        lmap[val] = 'gray' if idx >= len(LINE_COLORS) else LINE_COLORS[idx]
 
     return lmap[val]
 
