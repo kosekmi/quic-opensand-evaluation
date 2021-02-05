@@ -98,17 +98,6 @@ def analyze_goodput(df: pd.DataFrame, out_dir: str, extra_title_col: str = None)
     for sat in df['sat'].unique():
         for rate in df['rate'].unique():
             for queue in df['queue'].unique():
-                g = gnuplot.Gnuplot(log=True,
-                                    title='"Goodput Evolution - %s - %.0f Mbit/s - BDP*%d"' % (sat, rate, queue),
-                                    key='outside right center vertical samplen 2',
-                                    ylabel='"Goodput (kbps)"',
-                                    xlabel='"Time (s)"',
-                                    xrange='[0:30]',
-                                    term="pdf size %dcm, %dcm" % GRAPH_PLOT_SIZE_CM,
-                                    out='"%s"' % os.path.join(out_dir, GRAPH_DIR,
-                                                              "goodput_%s_r%s_q%d.pdf" % (sat, rate, queue)),
-                                    pointsize='0.5')
-
                 # Filter only data relevant for graph
                 gdf = df.loc[(df['sat'] == sat) & (df['rate'] == rate) & (df['queue'] == queue) & (df['second'] < 30)]
                 gdf = gdf[[extra_title_col, 'protocol', 'pep', 'loss', 'second', 'bps']]
@@ -117,18 +106,19 @@ def analyze_goodput(df: pd.DataFrame, out_dir: str, extra_title_col: str = None)
 
                 # Collect all variations of data
                 gdata = []
-                for extra_title in df[extra_title_col].unique():
-                    for protocol in df['protocol'].unique():
-                        for pep in df['pep'].unique():
-                            for loss in df['loss'].unique():
-                                try:
-                                    line_df = gdf.loc[(extra_title, protocol, pep, loss), 'bps']
-                                except KeyError:
-                                    # Combination of protocol, pep and loss does not exist
-                                    continue
-                                if line_df.empty:
-                                    continue
-                                gdata.append((line_df, extra_title, protocol, pep, loss))
+                if not gdf.empty:
+                    for extra_title in df[extra_title_col].unique():
+                        for protocol in df['protocol'].unique():
+                            for pep in df['pep'].unique():
+                                for loss in df['loss'].unique():
+                                    try:
+                                        line_df = gdf.loc[(extra_title, protocol, pep, loss), 'bps']
+                                    except KeyError:
+                                        # Combination of protocol, pep and loss does not exist
+                                        continue
+                                    if line_df.empty:
+                                        continue
+                                    gdata.append((line_df, extra_title, protocol, pep, loss))
                 gdata = sorted(gdata, key=lambda x: [x[1], x[2], x[3], x[4]])
                 if len(gdata) == 0:
                     logger.debug("No data for graph (sat=%s, rate=%dmbps, queue=%d)" % (sat, rate, queue))
@@ -151,6 +141,16 @@ def analyze_goodput(df: pd.DataFrame, out_dir: str, extra_title_col: str = None)
                     for index, (_, extra_title, protocol, pep, loss) in enumerate(gdata)
                 ]
 
+                g = gnuplot.Gnuplot(log=True,
+                                    title='"Goodput Evolution - %s - %.0f Mbit/s - BDP*%d"' % (sat, rate, queue),
+                                    key='outside right center vertical samplen 2',
+                                    ylabel='"Goodput (kbps)"',
+                                    xlabel='"Time (s)"',
+                                    xrange='[0:30]',
+                                    term="pdf size %dcm, %dcm" % GRAPH_PLOT_SIZE_CM,
+                                    out='"%s"' % os.path.join(out_dir, GRAPH_DIR,
+                                                              "goodput_%s_r%s_q%d.pdf" % (sat, rate, queue)),
+                                    pointsize='0.5')
                 g.plot_data(plot_df, *plot_cmds)
 
                 # Save plot data
@@ -184,17 +184,18 @@ def analyze_goodput_matrix(df: pd.DataFrame, out_dir: str):
 
                 # Collect all variations of data
                 gdata = []
-                for protocol in df['protocol'].unique():
-                    for pep in df['pep'].unique():
-                        for loss in df['loss'].unique():
-                            try:
-                                line_df = gdf.loc[(protocol, pep, loss), 'bps']
-                            except KeyError:
-                                # Combination of protocol, pep and loss does not exist
-                                continue
-                            if line_df.empty:
-                                continue
-                            gdata.append((line_df, protocol, pep, loss))
+                if not gdf.empty:
+                    for protocol in df['protocol'].unique():
+                        for pep in df['pep'].unique():
+                            for loss in df['loss'].unique():
+                                try:
+                                    line_df = gdf.loc[(protocol, pep, loss), 'bps']
+                                except KeyError:
+                                    # Combination of protocol, pep and loss does not exist
+                                    continue
+                                if line_df.empty:
+                                    continue
+                                gdata.append((line_df, protocol, pep, loss))
                 gdata = sorted(gdata, key=lambda x: [x[1], x[2], x[3]])
                 if len(gdata) == 0:
                     logger.debug("No data for graph (sat=%s, rate=%dmbps, queue=%d)" % (sat, rate, queue))
@@ -286,18 +287,6 @@ def analyze_cwnd_evo(df: pd.DataFrame, out_dir: str):
     for sat in df['sat'].unique():
         for rate in df['rate'].unique():
             for queue in df['queue'].unique():
-                g = gnuplot.Gnuplot(log=True,
-                                    title='"Congestion Window Evolution - %s - %.0f Mbit/s - BDP*%d"'
-                                          % (sat, rate, queue),
-                                    key='outside right center vertical samplen 2',
-                                    ylabel='"Congestion window (KB)"',
-                                    xlabel='"Time (s)"',
-                                    xrange='[0:30]',
-                                    term="pdf size %dcm, %dcm" % GRAPH_PLOT_SIZE_CM,
-                                    out='"%s"' % os.path.join(out_dir, GRAPH_DIR,
-                                                              "cwnd_evo_%s_r%s_q%d.pdf" % (sat, rate, queue)),
-                                    pointsize='0.5')
-
                 # Filter only data relevant for graph
                 gdf = df.loc[(df['sat'] == sat) & (df['rate'] == rate) & (df['queue'] == queue) & (df['second'] < 30)]
                 gdf = gdf[['protocol', 'pep', 'loss', 'second', 'cwnd']]
@@ -306,17 +295,18 @@ def analyze_cwnd_evo(df: pd.DataFrame, out_dir: str):
 
                 # Collect all variations of data
                 gdata = []
-                for protocol in df['protocol'].unique():
-                    for pep in df['pep'].unique():
-                        for loss in df['loss'].unique():
-                            try:
-                                line_df = gdf.loc[(protocol, pep, loss), 'cwnd']
-                            except KeyError:
-                                # Combination of protocol, pep and loss does not exist
-                                continue
-                            if line_df.empty:
-                                continue
-                            gdata.append((line_df, protocol, pep, loss))
+                if not gdf.empty:
+                    for protocol in df['protocol'].unique():
+                        for pep in df['pep'].unique():
+                            for loss in df['loss'].unique():
+                                try:
+                                    line_df = gdf.loc[(protocol, pep, loss), 'cwnd']
+                                except KeyError:
+                                    # Combination of protocol, pep and loss does not exist
+                                    continue
+                                if line_df.empty:
+                                    continue
+                                gdata.append((line_df, protocol, pep, loss))
                 gdata = sorted(gdata, key=lambda x: [x[1], x[2], x[3]])
                 if len(gdata) == 0:
                     logger.debug("No data for graph (sat=%s, rate=%dmbps, queue=%d)" % (sat, rate, queue))
@@ -338,6 +328,17 @@ def analyze_cwnd_evo(df: pd.DataFrame, out_dir: str):
                     for index, (_, protocol, pep, loss) in enumerate(gdata)
                 ]
 
+                g = gnuplot.Gnuplot(log=True,
+                                    title='"Congestion Window Evolution - %s - %.0f Mbit/s - BDP*%d"'
+                                          % (sat, rate, queue),
+                                    key='outside right center vertical samplen 2',
+                                    ylabel='"Congestion window (KB)"',
+                                    xlabel='"Time (s)"',
+                                    xrange='[0:30]',
+                                    term="pdf size %dcm, %dcm" % GRAPH_PLOT_SIZE_CM,
+                                    out='"%s"' % os.path.join(out_dir, GRAPH_DIR,
+                                                              "cwnd_evo_%s_r%s_q%d.pdf" % (sat, rate, queue)),
+                                    pointsize='0.5')
                 g.plot_data(plot_df, *plot_cmds)
 
                 # Save plot data
@@ -371,17 +372,18 @@ def analyze_cwnd_evo_matrix(df: pd.DataFrame, out_dir: str):
 
                 # Collect all variations of data
                 gdata = []
-                for protocol in df['protocol'].unique():
-                    for pep in df['pep'].unique():
-                        for loss in df['loss'].unique():
-                            try:
-                                line_df = gdf.loc[(protocol, pep, loss), 'cwnd']
-                            except KeyError:
-                                # Combination of protocol, pep and loss does not exist
-                                continue
-                            if line_df.empty:
-                                continue
-                            gdata.append((line_df, protocol, pep, loss))
+                if not gdf.empty:
+                    for protocol in df['protocol'].unique():
+                        for pep in df['pep'].unique():
+                            for loss in df['loss'].unique():
+                                try:
+                                    line_df = gdf.loc[(protocol, pep, loss), 'cwnd']
+                                except KeyError:
+                                    # Combination of protocol, pep and loss does not exist
+                                    continue
+                                if line_df.empty:
+                                    continue
+                                gdata.append((line_df, protocol, pep, loss))
                 gdata = sorted(gdata, key=lambda x: [x[1], x[2], x[3]])
                 if len(gdata) == 0:
                     logger.debug("No data for graph (sat=%s, rate=%dmbps, queue=%d)" % (sat, rate, queue))
@@ -473,17 +475,6 @@ def analyze_packet_loss(df: pd.DataFrame, out_dir: str):
     for sat in df['sat'].unique():
         for rate in df['rate'].unique():
             for queue in df['queue'].unique():
-                g = gnuplot.Gnuplot(log=True,
-                                    title='"Packet Loss - %s - %.0f Mbit/s - BDP*%d"' % (sat, rate, queue),
-                                    key='outside right center vertical samplen 2',
-                                    ylabel='"Packets lost"',
-                                    xlabel='"Time (s)"',
-                                    xrange='[0:30]',
-                                    term="pdf size %dcm, %dcm" % GRAPH_PLOT_SIZE_CM,
-                                    out='"%s"' % os.path.join(out_dir, GRAPH_DIR,
-                                                              "packet_loss_%s_r%s_q%d.pdf" % (sat, rate, queue)),
-                                    pointsize='0.5')
-
                 # Filter only data relevant for graph
                 gdf = df.loc[
                     (df['sat'] == sat) & (df['rate'] == rate) & (df['queue'] == queue) & (df['second'] < 30)]
@@ -493,17 +484,18 @@ def analyze_packet_loss(df: pd.DataFrame, out_dir: str):
 
                 # Collect all variations of data
                 gdata = []
-                for protocol in df['protocol'].unique():
-                    for pep in df['pep'].unique():
-                        for loss in df['loss'].unique():
-                            try:
-                                line_df = gdf.loc[(protocol, pep, loss), 'packets_lost']
-                            except KeyError:
-                                # Combination of protocol, pep and loss does not exist
-                                continue
-                            if line_df.empty:
-                                continue
-                            gdata.append((line_df, protocol, pep, loss))
+                if not gdf.empty:
+                    for protocol in df['protocol'].unique():
+                        for pep in df['pep'].unique():
+                            for loss in df['loss'].unique():
+                                try:
+                                    line_df = gdf.loc[(protocol, pep, loss), 'packets_lost']
+                                except KeyError:
+                                    # Combination of protocol, pep and loss does not exist
+                                    continue
+                                if line_df.empty:
+                                    continue
+                                gdata.append((line_df, protocol, pep, loss))
                 gdata = sorted(gdata, key=lambda x: [x[1], x[2], x[3]])
                 if len(gdata) == 0:
                     logger.debug("No data for graph (sat=%s, rate=%dmbps, queue=%d)" % (sat, rate, queue))
@@ -525,6 +517,16 @@ def analyze_packet_loss(df: pd.DataFrame, out_dir: str):
                     for index, (_, protocol, pep, loss) in enumerate(gdata)
                 ]
 
+                g = gnuplot.Gnuplot(log=True,
+                                    title='"Packet Loss - %s - %.0f Mbit/s - BDP*%d"' % (sat, rate, queue),
+                                    key='outside right center vertical samplen 2',
+                                    ylabel='"Packets lost"',
+                                    xlabel='"Time (s)"',
+                                    xrange='[0:30]',
+                                    term="pdf size %dcm, %dcm" % GRAPH_PLOT_SIZE_CM,
+                                    out='"%s"' % os.path.join(out_dir, GRAPH_DIR,
+                                                              "packet_loss_%s_r%s_q%d.pdf" % (sat, rate, queue)),
+                                    pointsize='0.5')
                 g.plot_data(plot_df, *plot_cmds)
 
                 # Save plot data
@@ -559,17 +561,18 @@ def analyze_packet_loss_matrix(df: pd.DataFrame, out_dir: str):
 
                 # Collect all variations of data
                 gdata = []
-                for protocol in df['protocol'].unique():
-                    for pep in df['pep'].unique():
-                        for loss in df['loss'].unique():
-                            try:
-                                line_df = gdf.loc[(protocol, pep, loss), 'packets_lost']
-                            except KeyError:
-                                # Combination of protocol, pep and loss does not exist
-                                continue
-                            if line_df.empty:
-                                continue
-                            gdata.append((line_df, protocol, pep, loss))
+                if not gdf.empty:
+                    for protocol in df['protocol'].unique():
+                        for pep in df['pep'].unique():
+                            for loss in df['loss'].unique():
+                                try:
+                                    line_df = gdf.loc[(protocol, pep, loss), 'packets_lost']
+                                except KeyError:
+                                    # Combination of protocol, pep and loss does not exist
+                                    continue
+                                if line_df.empty:
+                                    continue
+                                gdata.append((line_df, protocol, pep, loss))
                 gdata = sorted(gdata, key=lambda x: [x[1], x[2], x[3]])
                 if len(gdata) == 0:
                     logger.debug("No data for graph (sat=%s, rate=%dmbps, queue=%d)" % (sat, rate, queue))
@@ -661,16 +664,6 @@ def analyze_rtt(df: pd.DataFrame, out_dir: str):
     for sat in df['sat'].unique():
         for rate in df['rate'].unique():
             for queue in df['queue'].unique():
-                g = gnuplot.Gnuplot(log=True,
-                                    title='"Round Trip Time - %s - %.0f Mbit/s - BDP*%d"' % (sat, rate, queue),
-                                    key='outside right center vertical samplen 2',
-                                    ylabel='"RTT (ms)"',
-                                    xlabel='"Time (s)"',
-                                    term="pdf size %dcm, %dcm" % GRAPH_PLOT_SIZE_CM,
-                                    out='"%s"' % os.path.join(out_dir, GRAPH_DIR,
-                                                              "rtt_%s_r%s_q%d.pdf" % (sat, rate, queue)),
-                                    pointsize='0.5')
-
                 # Filter only data relevant for graph
                 gdf = pd.DataFrame(df.loc[(df['sat'] == sat) & (df['rate'] == rate) & (df['queue'] == queue)])
                 gdf['second'] = (gdf['seq'] / 100).astype(np.int)
@@ -680,15 +673,16 @@ def analyze_rtt(df: pd.DataFrame, out_dir: str):
 
                 # Collect all variations of data
                 gdata = []
-                for loss in df['loss'].unique():
-                    try:
-                        line_df = gdf.loc[(loss,), 'rtt']
-                    except KeyError:
-                        # Selected loss does not exist
-                        continue
-                    if line_df.empty:
-                        continue
-                    gdata.append((line_df, loss))
+                if not gdf.empty:
+                    for loss in df['loss'].unique():
+                        try:
+                            line_df = gdf.loc[(loss,), 'rtt']
+                        except KeyError:
+                            # Selected loss does not exist
+                            continue
+                        if line_df.empty:
+                            continue
+                        gdata.append((line_df, loss))
                 gdata = sorted(gdata, key=lambda x: x[1])
                 if len(gdata) == 0:
                     logger.debug("No data for graph (sat=%s, rate=%dmbps, queue=%d)" % (sat, rate, queue))
@@ -708,6 +702,15 @@ def analyze_rtt(df: pd.DataFrame, out_dir: str):
                     for index, (_, loss) in enumerate(gdata)
                 ]
 
+                g = gnuplot.Gnuplot(log=True,
+                                    title='"Round Trip Time - %s - %.0f Mbit/s - BDP*%d"' % (sat, rate, queue),
+                                    key='outside right center vertical samplen 2',
+                                    ylabel='"RTT (ms)"',
+                                    xlabel='"Time (s)"',
+                                    term="pdf size %dcm, %dcm" % GRAPH_PLOT_SIZE_CM,
+                                    out='"%s"' % os.path.join(out_dir, GRAPH_DIR,
+                                                              "rtt_%s_r%s_q%d.pdf" % (sat, rate, queue)),
+                                    pointsize='0.5')
                 g.plot_data(plot_df, *plot_cmds)
 
                 # Save plot data

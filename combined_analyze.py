@@ -26,7 +26,7 @@ def parse_args(argv):
     try:
         opts, args = getopt.getopt(argv, "o:", ["output="])
     except getopt.GetoptError:
-        print("parse.py -i <input_dir> -o <output_dir>")
+        print("parse.py -o <output_dir>")
         sys.exit(2)
 
     # Parse options
