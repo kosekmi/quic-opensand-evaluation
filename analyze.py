@@ -12,6 +12,7 @@ LINE_COLORS = ['black', 'red', 'dark-violet', 'blue', 'dark-green', 'dark-orange
 POINT_TYPES = [2, 4, 8, 10, 6, 12, 9, 11]
 
 GRAPH_PLOT_SIZE_CM = (22, 8)
+GRAPH_PLOT_SECONDS = 30
 VALUE_PLOT_SIZE_CM = (12, 8)
 MATRIX_KEY_SIZE = 0.12
 MATRIX_SIZE_SKEW = 0.7
@@ -99,7 +100,7 @@ def analyze_goodput(df: pd.DataFrame, out_dir: str, extra_title_col: str = None)
         for rate in df['rate'].unique():
             for queue in df['queue'].unique():
                 # Filter only data relevant for graph
-                gdf = df.loc[(df['sat'] == sat) & (df['rate'] == rate) & (df['queue'] == queue) & (df['second'] < 30)]
+                gdf = df.loc[(df['sat'] == sat) & (df['rate'] == rate) & (df['queue'] == queue) & (df['second'] < GRAPH_PLOT_SECONDS)]
                 gdf = gdf[[extra_title_col, 'protocol', 'pep', 'loss', 'second', 'bps']]
                 # Calculate mean average per second over all runs
                 gdf = gdf.groupby([extra_title_col, 'protocol', 'pep', 'loss', 'second']).mean()
@@ -146,7 +147,7 @@ def analyze_goodput(df: pd.DataFrame, out_dir: str, extra_title_col: str = None)
                                     key='outside right center vertical samplen 2',
                                     ylabel='"Goodput (kbps)"',
                                     xlabel='"Time (s)"',
-                                    xrange='[0:30]',
+                                    xrange='[0:%d]' % GRAPH_PLOT_SECONDS,
                                     term="pdf size %dcm, %dcm" % GRAPH_PLOT_SIZE_CM,
                                     out='"%s"' % os.path.join(out_dir, GRAPH_DIR,
                                                               "goodput_%s_r%s_q%d.pdf" % (sat, rate, queue)),
@@ -177,7 +178,7 @@ def analyze_goodput_matrix(df: pd.DataFrame, out_dir: str):
         for sat_idx, sat in enumerate(sorted(df['sat'].unique(), key=sat_key)):
             for rate_idx, rate in enumerate(sorted(df['rate'].unique(), reverse=True)):
                 # Filter only data relevant for graph
-                gdf = df.loc[(df['sat'] == sat) & (df['rate'] == rate) & (df['queue'] == queue) & (df['second'] < 30)]
+                gdf = df.loc[(df['sat'] == sat) & (df['rate'] == rate) & (df['queue'] == queue) & (df['second'] < GRAPH_PLOT_SECONDS)]
                 gdf = gdf[['protocol', 'pep', 'loss', 'second', 'bps']]
                 # Calculate mean average per second over all runs
                 gdf = gdf.groupby(['protocol', 'pep', 'loss', 'second']).mean()
@@ -228,7 +229,7 @@ def analyze_goodput_matrix(df: pd.DataFrame, out_dir: str):
                     key='off',
                     ylabel='"Goodput (kbps)"',
                     xlabel='"Time (s)"',
-                    xrange='[0:30]',
+                    xrange='[0:%d]' % GRAPH_PLOT_SECONDS,
                     yrange='[0:%d]' % (rate * 2000,),
                     pointsize='0.5',
                     size=sub_size,
@@ -288,7 +289,7 @@ def analyze_cwnd_evo(df: pd.DataFrame, out_dir: str):
         for rate in df['rate'].unique():
             for queue in df['queue'].unique():
                 # Filter only data relevant for graph
-                gdf = df.loc[(df['sat'] == sat) & (df['rate'] == rate) & (df['queue'] == queue) & (df['second'] < 30)]
+                gdf = df.loc[(df['sat'] == sat) & (df['rate'] == rate) & (df['queue'] == queue) & (df['second'] < GRAPH_PLOT_SECONDS)]
                 gdf = gdf[['protocol', 'pep', 'loss', 'second', 'cwnd']]
                 # Calculate mean average per second over all runs
                 gdf = gdf.groupby(['protocol', 'pep', 'loss', 'second']).mean()
@@ -334,7 +335,7 @@ def analyze_cwnd_evo(df: pd.DataFrame, out_dir: str):
                                     key='outside right center vertical samplen 2',
                                     ylabel='"Congestion window (KB)"',
                                     xlabel='"Time (s)"',
-                                    xrange='[0:30]',
+                                    xrange='[0:%d]' % GRAPH_PLOT_SECONDS,
                                     term="pdf size %dcm, %dcm" % GRAPH_PLOT_SIZE_CM,
                                     out='"%s"' % os.path.join(out_dir, GRAPH_DIR,
                                                               "cwnd_evo_%s_r%s_q%d.pdf" % (sat, rate, queue)),
@@ -365,7 +366,7 @@ def analyze_cwnd_evo_matrix(df: pd.DataFrame, out_dir: str):
         for sat_idx, sat in enumerate(sorted(df['sat'].unique(), key=sat_key)):
             for rate_idx, rate in enumerate(sorted(df['rate'].unique(), reverse=True)):
                 # Filter only data relevant for graph
-                gdf = df.loc[(df['sat'] == sat) & (df['rate'] == rate) & (df['queue'] == queue) & (df['second'] < 30)]
+                gdf = df.loc[(df['sat'] == sat) & (df['rate'] == rate) & (df['queue'] == queue) & (df['second'] < GRAPH_PLOT_SECONDS)]
                 gdf = gdf[['protocol', 'pep', 'loss', 'second', 'cwnd']]
                 # Calculate mean average per second over all runs
                 gdf = gdf.groupby(['protocol', 'pep', 'loss', 'second']).mean()
@@ -416,7 +417,7 @@ def analyze_cwnd_evo_matrix(df: pd.DataFrame, out_dir: str):
                     key='off',
                     ylabel='"Congestion window (KB)"',
                     xlabel='"Time (s)"',
-                    xrange='[0:30]',
+                    xrange='[0:%d]' % GRAPH_PLOT_SECONDS,
                     yrange='[0:%d]' % (rate * 3000,),
                     pointsize='0.5',
                     size=sub_size,
@@ -477,7 +478,7 @@ def analyze_packet_loss(df: pd.DataFrame, out_dir: str):
             for queue in df['queue'].unique():
                 # Filter only data relevant for graph
                 gdf = df.loc[
-                    (df['sat'] == sat) & (df['rate'] == rate) & (df['queue'] == queue) & (df['second'] < 30)]
+                    (df['sat'] == sat) & (df['rate'] == rate) & (df['queue'] == queue) & (df['second'] < GRAPH_PLOT_SECONDS)]
                 gdf = gdf[['protocol', 'pep', 'loss', 'second', 'packets_lost']]
                 # Calculate mean average per second over all runs
                 gdf = gdf.groupby(['protocol', 'pep', 'loss', 'second']).mean()
@@ -522,7 +523,7 @@ def analyze_packet_loss(df: pd.DataFrame, out_dir: str):
                                     key='outside right center vertical samplen 2',
                                     ylabel='"Packets lost"',
                                     xlabel='"Time (s)"',
-                                    xrange='[0:30]',
+                                    xrange='[0:%d]' % GRAPH_PLOT_SECONDS,
                                     term="pdf size %dcm, %dcm" % GRAPH_PLOT_SIZE_CM,
                                     out='"%s"' % os.path.join(out_dir, GRAPH_DIR,
                                                               "packet_loss_%s_r%s_q%d.pdf" % (sat, rate, queue)),
@@ -554,7 +555,7 @@ def analyze_packet_loss_matrix(df: pd.DataFrame, out_dir: str):
             ymax = df.loc[df['rate'] == rate]['packets_lost'].max()
             for sat_idx, sat in enumerate(sorted(df['sat'].unique(), key=sat_key)):
                 # Filter only data relevant for graph
-                gdf = df.loc[(df['sat'] == sat) & (df['rate'] == rate) & (df['queue'] == queue) & (df['second'] < 30)]
+                gdf = df.loc[(df['sat'] == sat) & (df['rate'] == rate) & (df['queue'] == queue) & (df['second'] < GRAPH_PLOT_SECONDS)]
                 gdf = gdf[['protocol', 'pep', 'loss', 'second', 'packets_lost']]
                 # Calculate mean average per second over all runs
                 gdf = gdf.groupby(['protocol', 'pep', 'loss', 'second']).mean()
@@ -604,7 +605,7 @@ def analyze_packet_loss_matrix(df: pd.DataFrame, out_dir: str):
                     title='"%s - %.0f Mbit/s"' % (sat, rate),
                     ylabel='"Packets lost"',
                     xlabel='"Time (s)"',
-                    xrange='[0:30]',
+                    xrange='[0:%d]' % GRAPH_PLOT_SECONDS,
                     yrange='[0:%d]' % (ymax,),
                     pointsize='0.5',
                     key='off',
