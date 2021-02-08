@@ -55,7 +55,7 @@ def load_json_file(path: str):
 
 
 def bps_factor(prefix: str):
-    factor = {'K': 2**10, 'M': 2**20, 'G': 2**30, 'T': 2**40, 'P': 2**50, 'E': 2*60, 'Z': 2*70, 'Y': 2*80}
+    factor = {'K': 10**3, 'M': 10**6, 'G': 10**9, 'T': 10**12, 'P': 10**15, 'E': 10**18, 'Z': 10**21, 'Y': 10**24}
     prefix = prefix.upper()
     return factor[prefix] if prefix in factor else 1
 
@@ -94,7 +94,7 @@ def parse_quic_client(result_set_path, pep=False):
                 df = df.append({
                     'run': run,
                     'second': int(line_match.group(1)),
-                    'bps': int(float(line_match.group(2)) * bps_factor(line_match.group(3))),
+                    'bps': float(line_match.group(2)) * bps_factor(line_match.group(3)),
                     'bytes': int(line_match.group(4)),
                     'packets_received': int(line_match.group(5))
                 }, ignore_index=True)
@@ -391,13 +391,24 @@ def extend_df(df: pd.DataFrame, by: pd.DataFrame, **kwargs):
     :return: The extended df
     """
 
-    alias = {
-        'sat': 'delay',
-        'queue': 'queue_overhead_factor',
+    aliases = {
+        'sat': ['delay', 'orbit'],
+        'queue': ['queue_overhead_factor', 'runs'],
+        'loss': ['attenuation'],
     }
     missing_cols = set(df.columns).difference(set(by.columns))
     for col_name in missing_cols:
-        by[col_name] = kwargs.get(col_name, kwargs.get(alias[col_name], np.nan) if col_name in alias else np.nan)
+        col_value = np.nan
+
+        if col_name in kwargs:
+            col_value = kwargs[col_name]
+        elif col_name in aliases:
+            for alias_col in aliases[col_name]:
+                if alias_col in kwargs:
+                    col_value = kwargs[alias_col]
+                    break
+
+        by[col_name] = col_value
     return df.append(by, ignore_index=True)
 
 

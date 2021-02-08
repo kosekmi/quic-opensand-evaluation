@@ -829,15 +829,11 @@ def analyze_connection_times(df: pd.DataFrame, out_dir: str, time_val: str):
 
 def analyze_all(parsed_results: dict, out_dir="."):
     logger.info("Analyzing goodput")
-    goodput_cols = ['protocol', 'pep', 'sat', 'rate', 'loss', 'queue', 'run', 'second']
-    df_goodput_quic = pd.DataFrame(parsed_results['quic_client'][goodput_cols])
-    df_goodput_tcp = pd.DataFrame(parsed_results['tcp_client'][goodput_cols])
-    # Take the most accurate value for each of the protocols
-    # qperf: Byte count for each second
-    # iperf: Calculated bps
-    df_goodput_quic['bps'] = parsed_results['quic_client']['bytes'] * 8.0
-    df_goodput_tcp['bps'] = parsed_results['tcp_client']['bps']
-    df_goodput = pd.concat([df_goodput_quic, df_goodput_tcp], axis=0, ignore_index=True)
+    goodput_cols = ['protocol', 'pep', 'sat', 'rate', 'loss', 'queue', 'run', 'second', 'bps']
+    df_goodput = pd.concat([
+        parsed_results['quic_client'][goodput_cols],
+        parsed_results['tcp_client'][goodput_cols],
+    ], axis=0, ignore_index=True)
     analyze_goodput(df_goodput, out_dir)
     analyze_goodput_matrix(df_goodput, out_dir)
 
