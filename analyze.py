@@ -767,7 +767,9 @@ def analyze_connection_times(df: pd.DataFrame, out_dir: str, time_val: str):
                 cnt_rate = len(full_gdf['rate'].unique())
                 cnt_sat = len(full_gdf['sat'].unique())
                 x_max = (cnt_rate + 1) * cnt_sat
-                y_max = np.ceil(full_gdf['95%'].max() / 1000.0) * 1000
+                y_max = max(full_gdf['95%'].max(), full_gdf['mean'].max())
+                y_max_base = 10**np.floor(np.log10(y_max))
+                y_max = max(1, int(np.ceil(y_max / y_max_base) * y_max_base))
 
                 plot_title = "Unknown"
                 if time_val == 'ttfb':
