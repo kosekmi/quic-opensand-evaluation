@@ -7,6 +7,7 @@ import getopt
 import re
 import logging
 import json
+from datetime import datetime
 from enum import Enum
 from analyze import analyze_all
 
@@ -335,7 +336,7 @@ def parse_tcp_server(result_set_path, pep=False):
 
 
 def parse_ping(result_set_path):
-    logger.info("Parsing ping log files")
+    logger.info("Parsing ping log file")
 
     path = os.path.join(result_set_path, "ping.txt")
     if not os.path.isfile(path):
@@ -370,6 +371,48 @@ def parse_ping(result_set_path):
     summary_df = pd.DataFrame({k: [v] for k, v in summary_data.items()})
 
     return raw_df, summary_df
+
+
+def parse_log(result_set_path):
+    logger.info("Parsing log file")
+
+    path = os.path.join(result_set_path, "opensand.log")
+    if not os.path.isfile(path):
+        path = os.path.join(result_set_path, "measure.log")
+        if not os.path.isfile(path):
+            logger.warning("No log file found")
+            return None
+
+    runs_data = []
+    stats_data = []
+    start_time = None
+
+    with open(path) as file:
+        for line in file:
+            if start_time is None:
+                start_time = datetime.strptime(' '.join(line.split(' ', 2)[:2]), "%Y-%m-%d %H:%M:%S%z")
+
+            match = re.match(r"^([0-9-+ :]+) \[INFO]: (.* run \d+/\d+)$", line)
+            if match:
+                runs_data.append({
+                    'time': datetime.strptime(match.group(1), "%Y-%m-%d %H:%M:%S%z") - start_time,
+                    'name': match.group(2),
+                })
+            else:
+                match = re.search(r"^([0-9-+ :]+) \[STAT]: CPU load \(1m avg\): (\d+(?:\.\d+)?), RAM usage: (\d+)MB$", line)
+                if match:
+                    stats_data.append({
+                        'time': datetime.strptime(match.group(1), "%Y-%m-%d %H:%M:%S%z") - start_time,
+                        'cpu_load': match.group(2),
+                        'ram_usage': match.group(3),
+                    })
+
+    runs_df = pd.DataFrame(runs_data)
+    runs_df.set_index('time', inplace=True)
+    stats_df = pd.DataFrame(stats_data)
+    stats_df.set_index('time', inplace=True)
+
+    return runs_df, stats_df
 
 
 def measure_folders(root_folder):
@@ -457,6 +500,9 @@ def fix_dtypes(df):
         'rtt_avg': np.float32,
         'rtt_max': np.float32,
         'rtt_mdev': np.float32,
+        'name': np.str,
+        'cpu_load': np.float32,
+        'ram_usage': np.float32,
     }
 
     # Set defaults
@@ -561,6 +607,14 @@ def parse(in_dir="~/measure"):
         else:
             logger.warning("No data ping data in %s" % folder_name)
 
+    dfs = parse_log(in_dir)
+    if dfs is not None:
+        df_runs, df_stats = dfs
+    else:
+        logger.warning("No logging data")
+        df_runs = pd.DataFrame(columns=['time', 'name'], index='time')
+        df_stats = pd.DataFrame(columns=['time', 'cpu_load', 'ram_usage'], index='time')
+
     # Fix data types
     logger.info("Fixing data types")
     df_quic_client = fix_dtypes(df_quic_client)
@@ -571,6 +625,8 @@ def parse(in_dir="~/measure"):
     df_tcp_times = fix_dtypes(df_tcp_times)
     df_ping_raw = fix_dtypes(df_ping_raw)
     df_ping_summary = fix_dtypes(df_ping_summary)
+    df_runs = fix_dtypes(df_runs)
+    df_stats = fix_dtypes(df_stats)
 
     df_config = pd.DataFrame(data=configs)
     df_config.set_index('name', inplace=True)
@@ -585,6 +641,8 @@ def parse(in_dir="~/measure"):
         'tcp_times': df_tcp_times,
         'ping_raw': df_ping_raw,
         'ping_summary': df_ping_summary,
+        'stats': df_stats,
+        'runs': df_runs,
     }
 
 
