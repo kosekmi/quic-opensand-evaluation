@@ -11,8 +11,8 @@ DATA_DIR = 'data'
 LINE_COLORS = ['black', 'red', 'dark-violet', 'blue', 'dark-green', 'dark-orange', 'gold', 'cyan']
 POINT_TYPES = [2, 4, 8, 10, 6, 12, 9, 11]
 
-GRAPH_PLOT_SIZE_CM = (22, 8)
-GRAPH_PLOT_SECONDS = 30
+GRAPH_PLOT_SIZE_CM = (44, 8)
+GRAPH_PLOT_SECONDS = 300
 VALUE_PLOT_SIZE_CM = (12, 8)
 MATRIX_KEY_SIZE = 0.12
 MATRIX_SIZE_SKEW = 0.7
