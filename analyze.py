@@ -829,6 +829,55 @@ def analyze_connection_times(df: pd.DataFrame, out_dir: str, time_val: str):
                     f.write("\n".join(plot_cmds))
 
 
+def analyze_stats(df_stats, df_runs, out_dir="."):
+    def interpolate_stat(df, time, col_name):
+        idx_low = df.index.get_loc(time, method='pad')
+        idx_high = df.index.get_loc(time, method='backfill')
+
+        if idx_low == idx_high:
+            return df.iloc[idx_low][col_name]
+
+        p = (time - df.index[idx_low]) / (df.index[idx_high] - df.index[idx_low])
+        return df.iloc[idx_low] * (1 - p) + df.iloc[idx_high] * p
+
+    time_max = int(df_stats.index.max() + 1)
+    df_runs.reset_index(inplace=True)
+
+    g = gnuplot.Gnuplot(log=True,
+                        title='"RAM Usage"',
+                        key='off',
+                        xlabel='"Time"',
+                        ylabel='"Usage (MB)"',
+                        term="pdf size 44cm, 8cm",
+                        xrange="[0:%d]" % time_max,
+                        yrange="[0:%d]" % int(df_stats['ram_usage'].max() * 1.1),
+                        label=df_runs.apply(
+                            lambda row: '"%s" at %f,%f left rotate back textcolor \'gray\' offset 0,.5' %
+                                        (row['name'], row['time'], interpolate_stat(df_stats, row['time'], 'ram_usage')),
+                            axis=1).to_list(),
+                        out='"%s"' % os.path.join(out_dir, GRAPH_DIR, "stats_ram.pdf"),
+                        pointsize='0.5')
+    plot_cmd = "using 1:2 with linespoints pointtype 2 linecolor 'black'"
+    g.plot_data(df_stats[['ram_usage']], plot_cmd)
+
+    g = gnuplot.Gnuplot(log=True,
+                        title='"CPU Load"',
+                        key='off',
+                        xlabel='"Time"',
+                        ylabel='"Load"',
+                        xrange="[0:%d]" % time_max,
+                        yrange="[0:%f]" % (df_stats['cpu_load'].max() * 1.1),
+                        term="pdf size 44cm, 8cm",
+                        label=df_runs.apply(
+                            lambda row: '"%s" at %f,%f left rotate back textcolor \'gray\' offset 0,.5' %
+                                        (row['name'], row['time'], interpolate_stat(df_stats, row['time'], 'cpu_load')),
+                            axis=1).to_list(),
+                        out='"%s"' % os.path.join(out_dir, GRAPH_DIR, "stats_cpu.pdf"),
+                        pointsize='0.5')
+    plot_cmd = "using 1:2 with linespoints pointtype 2 linecolor 'black'"
+    g.plot_data(df_stats[['cpu_load']], plot_cmd)
+
+
 def analyze_all(parsed_results: dict, out_dir="."):
     logger.info("Analyzing goodput")
     goodput_cols = ['protocol', 'pep', 'sat', 'rate', 'loss', 'queue', 'run', 'second', 'bps']
@@ -871,3 +920,10 @@ def analyze_all(parsed_results: dict, out_dir="."):
 
     logger.info("Analyzing connection establishment")
     analyze_connection_times(df_con_times, out_dir, time_val='con_est')
+
+    logger.info("Analyzing stats")
+    df_stats = pd.DataFrame(parsed_results['stats'])
+    df_runs = pd.DataFrame(parsed_results['runs'])
+    df_stats.index = df_stats.index.total_seconds()
+    df_runs.index = df_runs.index.total_seconds()
+    analyze_stats(df_stats, df_runs, out_dir)
