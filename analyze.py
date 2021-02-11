@@ -838,7 +838,7 @@ def analyze_stats(df_stats, df_runs, out_dir="."):
             return df.iloc[idx_low][col_name]
 
         p = (time - df.index[idx_low]) / (df.index[idx_high] - df.index[idx_low])
-        return df.iloc[idx_low] * (1 - p) + df.iloc[idx_high] * p
+        return df.iloc[idx_low][col_name] * (1 - p) + df.iloc[idx_high][col_name] * p
 
     time_max = int(df_stats.index.max() + 1)
     df_runs.reset_index(inplace=True)
