@@ -101,6 +101,10 @@ def analyze_goodput(df: pd.DataFrame, out_dir: str, extra_title_col: str = None)
             for queue in df['queue'].unique():
                 # Filter only data relevant for graph
                 gdf = df.loc[(df['sat'] == sat) & (df['rate'] == rate) & (df['queue'] == queue) & (df['second'] < GRAPH_PLOT_SECONDS)]
+                if gdf.empty:
+                    logger.debug("No data for GOODPUT sat=%s, rate=%.0f, queue=%d", sat, rate, queue)
+                    continue
+
                 gdf = gdf[[extra_title_col, 'protocol', 'pep', 'loss', 'second', 'bps']]
                 # Calculate mean average per second over all runs
                 gdf = gdf.groupby([extra_title_col, 'protocol', 'pep', 'loss', 'second']).mean()
@@ -290,6 +294,10 @@ def analyze_cwnd_evo(df: pd.DataFrame, out_dir: str):
             for queue in df['queue'].unique():
                 # Filter only data relevant for graph
                 gdf = df.loc[(df['sat'] == sat) & (df['rate'] == rate) & (df['queue'] == queue) & (df['second'] < GRAPH_PLOT_SECONDS)]
+                if gdf.empty:
+                    logger.debug("No data for CWND_EVO sat=%s, rate=%.0f, queue=%d", sat, rate, queue)
+                    continue
+
                 gdf = gdf[['protocol', 'pep', 'loss', 'second', 'cwnd']]
                 # Calculate mean average per second over all runs
                 gdf = gdf.groupby(['protocol', 'pep', 'loss', 'second']).mean()
@@ -479,6 +487,10 @@ def analyze_packet_loss(df: pd.DataFrame, out_dir: str):
                 # Filter only data relevant for graph
                 gdf = df.loc[
                     (df['sat'] == sat) & (df['rate'] == rate) & (df['queue'] == queue) & (df['second'] < GRAPH_PLOT_SECONDS)]
+                if gdf.empty:
+                    logger.debug("No data for PACKET_LOSS sat=%s, rate=%.0f, queue=%d", sat, rate, queue)
+                    continue
+
                 gdf = gdf[['protocol', 'pep', 'loss', 'second', 'packets_lost']]
                 # Calculate mean average per second over all runs
                 gdf = gdf.groupby(['protocol', 'pep', 'loss', 'second']).mean()
@@ -667,6 +679,10 @@ def analyze_rtt(df: pd.DataFrame, out_dir: str):
             for queue in df['queue'].unique():
                 # Filter only data relevant for graph
                 gdf = pd.DataFrame(df.loc[(df['sat'] == sat) & (df['rate'] == rate) & (df['queue'] == queue)])
+                if gdf.empty:
+                    logger.debug("No data for RTT sat=%s, rate=%.0f, queue=%d", sat, rate, queue)
+                    continue
+
                 gdf['second'] = (gdf['seq'] / 100).astype(np.int)
                 gdf = gdf[['loss', 'second', 'rtt']]
                 # Calculate mean average per second over all runs
@@ -737,6 +753,10 @@ def analyze_connection_times(df: pd.DataFrame, out_dir: str, time_val: str):
                         (df['pep'] ^ (not pep)) &
                         (df['queue'] == queue)
                         ])
+                if gdf.empty:
+                    logger.debug("No data for CON_TIMES(%s) protocol=%s, pep=%s, queue=%d", time_val, protocol, pep, queue)
+                    continue
+
                 gdf = gdf[['sat', 'rate', 'loss', time_val]]
                 gdf = gdf.groupby(['sat', 'rate', 'loss']).describe(percentiles=[0.05, 0.95])
                 # Flatten column names
