@@ -407,10 +407,15 @@ def parse_log(result_set_path):
                         'ram_usage': match.group(3),
                     })
 
-    runs_df = pd.DataFrame(runs_data)
-    runs_df.set_index('time', inplace=True)
-    stats_df = pd.DataFrame(stats_data)
-    stats_df.set_index('time', inplace=True)
+    runs_df = None
+    if len(runs_data) > 0:
+        runs_df = pd.DataFrame(runs_data)
+        runs_df.set_index('time', inplace=True)
+
+    stats_df = None
+    if len(stats_data) > 0:
+        stats_df = pd.DataFrame(stats_data)
+        stats_df.set_index('time', inplace=True)
 
     return runs_df, stats_df
 
@@ -607,13 +612,18 @@ def parse(in_dir="~/measure"):
         else:
             logger.warning("No data ping data in %s" % folder_name)
 
+    df_runs = None
+    df_stats = None
     dfs = parse_log(in_dir)
     if dfs is not None:
         df_runs, df_stats = dfs
     else:
         logger.warning("No logging data")
-        df_runs = pd.DataFrame(columns=['time', 'name'], index='time')
-        df_stats = pd.DataFrame(columns=['time', 'cpu_load', 'ram_usage'], index='time')
+
+    if df_runs is None:
+        df_runs = pd.DataFrame(columns=['name'], index=pd.TimedeltaIndex([], name='time'))
+    if df_stats is None:
+        df_stats = pd.DataFrame(columns=['cpu_load', 'ram_usage'], index=pd.TimedeltaIndex([], name='time'))
 
     # Fix data types
     logger.info("Fixing data types")

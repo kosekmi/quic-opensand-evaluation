@@ -850,6 +850,10 @@ def analyze_connection_times(df: pd.DataFrame, out_dir: str, time_val: str):
 
 
 def analyze_stats(df_stats, df_runs, out_dir="."):
+    if df_stats.empty:
+        logger.info("No stats data, skipping graph generation")
+        return
+
     def interpolate_stat(df, time, col_name):
         idx_low = df.index.get_loc(time, method='pad')
         idx_high = df.index.get_loc(time, method='backfill')
