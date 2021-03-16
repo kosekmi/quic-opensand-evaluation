@@ -867,6 +867,10 @@ def analyze_stats(df_stats, df_runs, out_dir="."):
     time_max = int(df_stats.index.max() + 1)
     df_runs.reset_index(inplace=True)
 
+    y_max = df_stats['ram_usage'].max()
+    y_max_base = 10 ** np.floor(np.log10(y_max))
+    y_max = max(1, int(np.ceil(y_max / y_max_base) * y_max_base))
+
     g = gnuplot.Gnuplot(log=True,
                         title='"RAM Usage"',
                         key='off',
@@ -874,7 +878,7 @@ def analyze_stats(df_stats, df_runs, out_dir="."):
                         ylabel='"Usage (MB)"',
                         term="pdf size 44cm, 8cm",
                         xrange="[0:%d]" % time_max,
-                        yrange="[0:%d]" % int(df_stats['ram_usage'].max() * 1.1),
+                        yrange="[0:%d]" % y_max,
                         label=df_runs.apply(
                             lambda row: '"%s" at %f,%f left rotate back textcolor \'gray\' offset 0,.5' %
                                         (row['name'], row['time'], interpolate_stat(df_stats, row['time'], 'ram_usage')),
@@ -884,13 +888,17 @@ def analyze_stats(df_stats, df_runs, out_dir="."):
     plot_cmd = "using 1:2 with linespoints pointtype 2 linecolor 'black'"
     g.plot_data(df_stats[['ram_usage']], plot_cmd)
 
+    y_max = df_stats['cpu_load'].max()
+    y_max_base = 10 ** np.floor(np.log10(y_max))
+    y_max = max(1, int(np.ceil(y_max / y_max_base) * y_max_base))
+
     g = gnuplot.Gnuplot(log=True,
                         title='"CPU Load"',
                         key='off',
                         xlabel='"Time"',
                         ylabel='"Load"',
                         xrange="[0:%d]" % time_max,
-                        yrange="[0:%f]" % (df_stats['cpu_load'].max() * 1.1),
+                        yrange="[0:%f]" % y_max,
                         term="pdf size 44cm, 8cm",
                         label=df_runs.apply(
                             lambda row: '"%s" at %f,%f left rotate back textcolor \'gray\' offset 0,.5' %
