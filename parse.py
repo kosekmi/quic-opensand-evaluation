@@ -86,7 +86,7 @@ def parse_quic_client(result_set_path, pep=False):
         with open(path) as file:
             for line in file:
                 line_match = re.search(
-                    r"^second (\d+): (\d+(?:\.\d+)?) ([a-z]?)bit/s, bytes received: (\d+), packets received: (\d+)$",
+                    r"^second (\d+): (\d+(?:\.\d+)?) ([a-zA-Z]?)bit/s, bytes received: (\d+), packets received: (\d+)$",
                     line.strip()
                 )
                 if not line_match:
