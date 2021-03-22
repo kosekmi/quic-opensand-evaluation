@@ -143,7 +143,7 @@ def prepare_time_series_graph_data(df: pd.DataFrame, x_col: str, y_col: str, x_r
     # Calculate data lines
     gdata = []
     if not gdf.empty:
-        for data_tuple in unique_cross_product(gdf, extra_title_col, *data_cols):
+        for data_tuple in unique_cross_product(df, extra_title_col, *data_cols):
             try:
                 line_df = gdf.loc[data_tuple, y_col]
             except KeyError:
@@ -161,7 +161,7 @@ def prepare_time_series_graph_data(df: pd.DataFrame, x_col: str, y_col: str, x_r
     plot_df = pd.concat([x[0] for x in gdata], axis=1)
     # Generate plot commands
     plot_cmds = [
-        "using 1:($%d/%f) with linespoints pointtype %d linecolor '%s', title='%s%s'" %
+        "using 1:($%d/%f) with linespoints pointtype %d linecolor '%s' title '%s%s'" %
         (
             index + 2,
             y_div,
@@ -213,7 +213,7 @@ def plot_time_series(df: pd.DataFrame, out_dir: str, analysis_name: str, file_co
                             term="pdf size %dcm, %dcm" % GRAPH_PLOT_SIZE_CM,
                             out='"%s.pdf"' % os.path.join(out_dir, GRAPH_DIR, file_base))
         if x_range is not None:
-            g.set(xrange='[%d,%d]' % x_range)
+            g.set(xrange='[%d:%d]' % x_range)
         g.plot_data(plot_df, *plot_cmds)
 
         # Save plot data
