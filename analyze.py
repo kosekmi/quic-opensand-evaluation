@@ -82,7 +82,104 @@ def create_output_dirs(out_dir: str):
         os.makedirs(data_dir)
 
 
-def analyze_netem_goodput(df: pd.DataFrame, out_dir: str, extra_title_col: str = None):
+def unique_cross_product(df, *col_names):
+    if len(col_names) < 1:
+        return []
+
+    unique_vals = tuple(list(df[name].unique()) for name in col_names)
+    vids = [0 for _ in col_names]
+
+    while vids[0] < len(unique_vals[0]):
+        yield tuple(unique_vals[cid][vid] for cid, vid in enumerate(vids))
+        # Increment
+        for cid in range(len(col_names) - 1, -1, -1):
+            vids[cid] += 1
+            if vids[cid] < len(unique_vals[cid]):
+                break
+            elif cid != 0:
+                vids[cid] = 0
+
+
+def prepare_time_series_graph_data(df: pd.DataFrame, x_col: str, y_col: str, x_range, y_div: float,
+                                   extra_title_col: str, file_cols: list, file_tuple: tuple, data_cols: list,
+                                   point_map: dict, line_map: dict, point_type_indices: list, line_color_indices: list,
+                                   format_data_title) -> (pd.DataFrame, list, list):
+    """
+    Prepare data to be used in a time series graph.
+
+    :param df: The dataframe to read the data from
+    :param x_col: Name of the column that has the data for the x-axis
+    :param y_col: Name of the column that has the data for the y-axis
+    :param x_range: (min, max) tuple for filtering the values for the x-axis
+    :param y_div: Number to divide the values on the y-axis by before plotting
+    :param extra_title_col: Name of the column that holds a string prefix for the data title
+    :param file_cols: Column names that define values for which separate graphs are generated
+    :param file_tuple: The set of values for the file_cols that are used in this graph
+    :param data_cols: Column names of the columns used for the data lines
+    :param point_map: Map that ensures identical point types for same data lines
+    :param line_map: Map that ensures identical line colors for same data lines
+    :param point_type_indices: Indices of file_cols used to determine point type
+    :param line_color_indices: Indices of file_cols used to determine line color
+    :param format_data_title: Function to format the title of a data line, receives a data_tuple
+    :return: A tuple consisting of a dataframe that holds all data for the graph, a list of plot commands and a list of
+    data_tuples that will be plotted in the graph. If at some point there are no data left and therefore plotting the
+    graph would be useless, None is returned.
+    """
+
+    # Filter data for graph
+    gdf_filter = True
+    if x_range is not None:
+        gdf_filter = (df[x_col] >= x_range[0]) & (df[x_col] < x_range[1])
+    for col_name, col_val in zip(file_cols, file_tuple):
+        gdf_filter &= df[col_name] == col_val
+    gdf = df.loc[gdf_filter]
+    if gdf.empty:
+        return None
+
+    # Calculate mean average per y_value (e.g. per second calculate mean average from each run)
+    gdf = gdf[[extra_title_col, *data_cols, x_col, y_col]]
+    gdf = gdf.groupby([extra_title_col, *data_cols, x_col]).mean()
+
+    # Calculate data lines
+    gdata = []
+    if not gdf.empty:
+        for data_tuple in unique_cross_product(gdf, extra_title_col, *data_cols):
+            try:
+                line_df = gdf.loc[data_tuple, y_col]
+            except KeyError:
+                # Combination in data_tuple does not exist
+                continue
+            if line_df.empty:
+                # Combination in data_tuple has no data
+                continue
+            gdata.append((line_df, data_tuple))
+    gdata = sorted(gdata, key=lambda x: x[1:])
+    if len(gdata) == 0:
+        return None
+
+    # Merge line data into single df
+    plot_df = pd.concat([x[0] for x in gdata], axis=1)
+    # Generate plot commands
+    plot_cmds = [
+        "using 1:($%d/%f) with linespoints pointtype %d linecolor '%s', title='%s%s'" %
+        (
+            index + 2,
+            y_div,
+            get_point_type(point_map, tuple(data_tuple[i + 1] for i in point_type_indices)),
+            get_line_color(line_map, (data_tuple[0], *tuple(data_tuple[i + 1] for i in line_color_indices))),
+            data_tuple[0] if len(data_tuple[0]) == 0 else ("%s " % data_tuple[0]),
+            format_data_title(*data_tuple[1:])
+        )
+        for index, (_, data_tuple) in enumerate(gdata)
+    ]
+
+    return plot_df, plot_cmds, [data_tuple for _, data_tuple in gdata]
+
+
+def plot_time_series(df: pd.DataFrame, out_dir: str, analysis_name: str, file_cols: list, data_cols: list,
+                     file_col_prints: list, x_col: str, y_col: str, x_range: tuple, y_div: float, x_label: str,
+                     y_label: str, point_type_indices: list, line_color_indices: list, format_data_title,
+                     format_file_title, format_file_base, extra_title_col: str = None):
     create_output_dirs(out_dir)
 
     # Ensures same point types and line colors across all graphs
@@ -93,73 +190,80 @@ def analyze_netem_goodput(df: pd.DataFrame, out_dir: str, extra_title_col: str =
         extra_title_col = 'default_extra_title'
         df[extra_title_col] = ""
 
-    # Generate graphs
-    for sat in df['sat'].unique():
-        for rate in df['rate'].unique():
-            for queue in df['queue'].unique():
-                # Filter only data relevant for graph
-                gdf = df.loc[(df['sat'] == sat) & (df['rate'] == rate) & (df['queue'] == queue) & (
-                            df['second'] < GRAPH_PLOT_SECONDS)]
-                if gdf.empty:
-                    logger.debug("No data for GOODPUT sat=%s, rate=%.0f, queue=%d", sat, rate, queue)
-                    continue
+    for file_tuple in unique_cross_product(df, *file_cols):
+        prepared_data = prepare_time_series_graph_data(df, x_col, y_col, x_range, y_div, extra_title_col, file_cols,
+                                                       file_tuple, data_cols, point_map, line_map, point_type_indices,
+                                                       line_color_indices, format_data_title)
+        if prepared_data is None:
+            prv = ', '.join([("%s=" + pr) % (col, val) for col, pr, val in zip(file_cols, file_col_prints, file_tuple)])
+            logger.debug("No data for %s " + prv, analysis_name)
+            continue
 
-                gdf = gdf[[extra_title_col, 'protocol', 'pep', 'loss', 'second', 'bps']]
-                # Calculate mean average per second over all runs
-                gdf = gdf.groupby([extra_title_col, 'protocol', 'pep', 'loss', 'second']).mean()
+        plot_df, plot_cmds, data_tuples = prepared_data
+        file_base = format_file_base(*file_tuple)
 
-                # Collect all variations of data
-                gdata = []
-                if not gdf.empty:
-                    for extra_title in df[extra_title_col].unique():
-                        for protocol in df['protocol'].unique():
-                            for pep in df['pep'].unique():
-                                for loss in df['loss'].unique():
-                                    try:
-                                        line_df = gdf.loc[(extra_title, protocol, pep, loss), 'bps']
-                                    except KeyError:
-                                        # Combination of protocol, pep and loss does not exist
-                                        continue
-                                    if line_df.empty:
-                                        continue
-                                    gdata.append((line_df, extra_title, protocol, pep, loss))
-                gdata = sorted(gdata, key=lambda x: [x[1], x[2], x[3], x[4]])
-                if len(gdata) == 0:
-                    logger.debug("No data for graph (sat=%s, rate=%dmbps, queue=%d)" % (sat, rate, queue))
-                    continue
+        g = gnuplot.Gnuplot(log=True,
+                            title='"%s"' % format_file_title(*file_tuple),
+                            key='outside right center vertical samplen 2',
+                            xlabel='"%s"' % x_label,
+                            ylabel='"%s"' % y_label,
+                            pointsize='0.5',
+                            xrange=None,
+                            yrange=None,
+                            term="pdf size %dcm, %dcm" % GRAPH_PLOT_SIZE_CM,
+                            out='"%s.pdf"' % os.path.join(out_dir, GRAPH_DIR, file_base))
+        if x_range is not None:
+            g.set(xrange='[%d,%d]' % x_range)
+        g.plot_data(plot_df, *plot_cmds)
 
-                # Merge data to single dataframe
-                plot_df = pd.concat([x[0] for x in gdata], axis=1)
-                # Generate gnuplot commands
-                plot_cmds = [
-                    "using 1:($%d/1000) with linespoints pointtype %d linecolor '%s' title '%s%s%s l=%.2f%%'" %
-                    (
-                        index + 2,
-                        get_point_type(point_map, loss),
-                        get_line_color(line_map, (extra_title, protocol, pep)),
-                        extra_title if len(extra_title) == 0 else ("%s " % extra_title),
-                        protocol.upper(),
-                        " (PEP)" if pep else "",
-                        loss * 100
-                    )
-                    for index, (_, extra_title, protocol, pep, loss) in enumerate(gdata)
-                ]
+        # Save plot data
+        plot_df.to_csv(os.path.join(out_dir, DATA_DIR, file_base + '.csv'))
 
-                g = gnuplot.Gnuplot(log=True,
-                                    title='"Goodput Evolution - %s - %.0f Mbit/s - BDP*%d"' % (sat, rate, queue),
-                                    key='outside right center vertical samplen 2',
-                                    ylabel='"Goodput (kbps)"',
-                                    xlabel='"Time (s)"',
-                                    xrange='[0:%d]' % GRAPH_PLOT_SECONDS,
-                                    term="pdf size %dcm, %dcm" % GRAPH_PLOT_SIZE_CM,
-                                    out='"%s"' % os.path.join(out_dir, GRAPH_DIR,
-                                                              "goodput_%s_r%s_q%d.pdf" % (sat, rate, queue)),
-                                    pointsize='0.5')
-                g.plot_data(plot_df, *plot_cmds)
 
-                # Save plot data
-                plot_df.columns = plot_cmds
-                plot_df.to_csv(os.path.join(out_dir, DATA_DIR, "goodput_%s_r%s_q%d.csv" % (sat, rate, queue)))
+def analyze_netem_goodput(df: pd.DataFrame, out_dir: str, extra_title_col: str = None):
+    plot_time_series(df, out_dir,
+                     analysis_name='GOODPUT',
+                     file_cols=['sat', 'rate', 'queue'],
+                     data_cols=['protocol', 'pep', 'loss'],
+                     file_col_prints=['%s', '%.0f', '%d'],
+                     x_col='second',
+                     y_col='bps',
+                     x_range=(0, GRAPH_PLOT_SECONDS),
+                     y_div=1000,
+                     x_label="Time (s)",
+                     y_label="Goodput (kbps)",
+                     point_type_indices=[2],
+                     line_color_indices=[0, 1],
+                     format_data_title=lambda protocol, pep, loss:
+                     "%s%s l=%.2f%%" % (protocol.upper(), " (PEP)" if pep else "", loss * 100),
+                     format_file_title=lambda sat, rate, queue:
+                     "Goodput Evolution - %s - %.0f Mbit/s - BDP*%d" % (sat, rate, queue),
+                     format_file_base=lambda sat, rate, queue:
+                     "goodput_%s_r%s_q%d" % (sat, rate, queue),
+                     extra_title_col=extra_title_col)
+
+
+def analyze_opensand_goodput(df: pd.DataFrame, out_dir: str, extra_title_col: str = None):
+    plot_time_series(df, out_dir,
+                     analysis_name='GOODPUT',
+                     file_cols=['sat', 'attenuation'],
+                     data_cols=['protocol', 'pep', 'tbs', 'qbs', 'ubs'],
+                     file_col_prints=['%s', '%.0f', '%d'],
+                     x_col='second',
+                     y_col='bps',
+                     x_range=(0, GRAPH_PLOT_SECONDS),
+                     y_div=1000,
+                     x_label="Time (s)",
+                     y_label="Goodput (kbps)",
+                     point_type_indices=[2, 3, 4],
+                     line_color_indices=[0, 1],
+                     format_data_title=lambda protocol, pep, tbs, qbs, ubs:
+                     "%s%s tbs=%s, qbs=%s, ubs=%s" % (protocol.upper(), " (PEP)" if pep else "", tbs, qbs, ubs),
+                     format_file_title=lambda sat, attenuation:
+                     "Goodput Evolution - %s - %d dB" % (sat, attenuation),
+                     format_file_base=lambda sat, attenuation:
+                     "goodput_%s_a%d" % (sat, attenuation),
+                     extra_title_col=extra_title_col)
 
 
 def analyze_netem_goodput_matrix(df: pd.DataFrame, out_dir: str):
@@ -182,7 +286,7 @@ def analyze_netem_goodput_matrix(df: pd.DataFrame, out_dir: str):
             for rate_idx, rate in enumerate(sorted(df['rate'].unique(), reverse=True)):
                 # Filter only data relevant for graph
                 gdf = df.loc[(df['sat'] == sat) & (df['rate'] == rate) & (df['queue'] == queue) & (
-                            df['second'] < GRAPH_PLOT_SECONDS)]
+                        df['second'] < GRAPH_PLOT_SECONDS)]
                 gdf = gdf[['protocol', 'pep', 'loss', 'second', 'bps']]
                 # Calculate mean average per second over all runs
                 gdf = gdf.groupby(['protocol', 'pep', 'loss', 'second']).mean()
@@ -294,7 +398,7 @@ def analyze_netem_cwnd_evo(df: pd.DataFrame, out_dir: str):
             for queue in df['queue'].unique():
                 # Filter only data relevant for graph
                 gdf = df.loc[(df['sat'] == sat) & (df['rate'] == rate) & (df['queue'] == queue) & (
-                            df['second'] < GRAPH_PLOT_SECONDS)]
+                        df['second'] < GRAPH_PLOT_SECONDS)]
                 if gdf.empty:
                     logger.debug("No data for CWND_EVO sat=%s, rate=%.0f, queue=%d", sat, rate, queue)
                     continue
@@ -376,7 +480,7 @@ def analyze_netem_cwnd_evo_matrix(df: pd.DataFrame, out_dir: str):
             for rate_idx, rate in enumerate(sorted(df['rate'].unique(), reverse=True)):
                 # Filter only data relevant for graph
                 gdf = df.loc[(df['sat'] == sat) & (df['rate'] == rate) & (df['queue'] == queue) & (
-                            df['second'] < GRAPH_PLOT_SECONDS)]
+                        df['second'] < GRAPH_PLOT_SECONDS)]
                 gdf = gdf[['protocol', 'pep', 'loss', 'second', 'cwnd']]
                 # Calculate mean average per second over all runs
                 gdf = gdf.groupby(['protocol', 'pep', 'loss', 'second']).mean()
@@ -489,7 +593,7 @@ def analyze_netem_packet_loss(df: pd.DataFrame, out_dir: str):
                 # Filter only data relevant for graph
                 gdf = df.loc[
                     (df['sat'] == sat) & (df['rate'] == rate) & (df['queue'] == queue) & (
-                                df['second'] < GRAPH_PLOT_SECONDS)]
+                            df['second'] < GRAPH_PLOT_SECONDS)]
                 if gdf.empty:
                     logger.debug("No data for PACKET_LOSS sat=%s, rate=%.0f, queue=%d", sat, rate, queue)
                     continue
@@ -571,7 +675,7 @@ def analyze_netem_packet_loss_matrix(df: pd.DataFrame, out_dir: str):
             for sat_idx, sat in enumerate(sorted(df['sat'].unique(), key=sat_key)):
                 # Filter only data relevant for graph
                 gdf = df.loc[(df['sat'] == sat) & (df['rate'] == rate) & (df['queue'] == queue) & (
-                            df['second'] < GRAPH_PLOT_SECONDS)]
+                        df['second'] < GRAPH_PLOT_SECONDS)]
                 gdf = gdf[['protocol', 'pep', 'loss', 'second', 'packets_lost']]
                 # Calculate mean average per second over all runs
                 gdf = gdf.groupby(['protocol', 'pep', 'loss', 'second']).mean()
@@ -889,7 +993,8 @@ def analyze_stats(df_stats, df_runs, out_dir="."):
                         label=df_runs.apply(
                             lambda row: '"%s" at %f,%f left rotate back textcolor \'gray\' offset 0,.5' %
                                         (
-                                        row['name'], row['time'], interpolate_stat(df_stats, row['time'], 'ram_usage')),
+                                            row['name'], row['time'],
+                                            interpolate_stat(df_stats, row['time'], 'ram_usage')),
                             axis=1).to_list(),
                         out='"%s"' % os.path.join(out_dir, GRAPH_DIR, "stats_ram.pdf"),
                         pointsize='0.5')
@@ -932,6 +1037,8 @@ def analyze_all(parsed_results: dict, measure_type: Type, out_dir="."):
     if measure_type == Type.NETEM:
         analyze_netem_goodput(df_goodput, out_dir)
         analyze_netem_goodput_matrix(df_goodput, out_dir)
+    elif measure_type == Type.OPENSAND:
+        analyze_opensand_goodput(df_goodput, out_dir)
 
     logger.info("Analyzing congestion window evolution")
     cwnd_evo_cols = ['protocol', 'pep', 'sat', 'run', 'second', 'cwnd']
@@ -989,3 +1096,8 @@ def analyze_all(parsed_results: dict, measure_type: Type, out_dir="."):
     df_stats.index = df_stats.index.total_seconds()
     df_runs.index = df_runs.index.total_seconds()
     analyze_stats(df_stats, df_runs, out_dir)
+
+
+if __name__ == '__main__':
+    df = pd.DataFrame({'a': [1, 1, 1, 2, 2, 3, 4], 'b': [5, 5, 6, 6, 7, 7, 8]})
+    print(list(unique_cross_product(df)))
