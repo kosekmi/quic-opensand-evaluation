@@ -5,7 +5,7 @@ import sys
 import re
 import getopt
 import analyze
-from parse import RAW_DATA_DIR
+from common import RAW_DATA_DIR
 
 
 def analyze_quic_goodput(out_dir: str, data: list):

@@ -4,6 +4,7 @@ import os
 import sys
 import logging
 from pygnuplot import gnuplot
+from typing import Optional, Dict, Tuple, Iterable, NewType, List, Callable, Generator
 from common import Type, GRAPH_DIR, DATA_DIR
 
 LINE_COLORS = ['black', 'red', 'dark-violet', 'blue', 'dark-green', 'dark-orange', 'gold', 'cyan']
@@ -27,43 +28,48 @@ except NameError:
     handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s'))
     logger.addHandler(handler)
 
+PointMap = Dict[any, int]
+LineMap = Dict[any, str]
+FileTuple = Tuple[any, ...]
+DataTuple = Tuple[any, ...]
 
-def get_point_type(pmap: dict, val: any):
+
+def get_point_type(point_map: PointMap, val: any):
     """
-    Selects the gnuplot pointtype based on the given value. The map ensures, that the same values give the same types.
-    :param pmap:
-    :param val:
+    Selects the gnuplot 'pointtype' based on the given value. The map ensures, that the same values give the same types.
+    :param point_map: The map to lookup point types from
+    :param val: The value to lookup or generate a point type for
     :return:
     """
 
-    if val not in pmap:
-        idx = len(pmap)
+    if val not in point_map:
+        idx = len(point_map)
         # Use default value if more point types than specified are requested
-        pmap[val] = 7 if idx >= len(POINT_TYPES) else POINT_TYPES[idx]
+        point_map[val] = 7 if idx >= len(POINT_TYPES) else POINT_TYPES[idx]
 
-    return pmap[val]
+    return point_map[val]
 
 
-def get_line_color(lmap: dict, val: any):
+def get_line_color(line_map: LineMap, val: any):
     """
-    Selects the gnuplot linecolor based on the given value. The map ensures, that the same values give the same color.
-    :param lmap:
-    :param val:
+    Selects the gnuplot 'linecolor' based on the given value. The map ensures, that the same values give the same color.
+    :param line_map: The map to lookup line colors from
+    :param val: The value to lookup or generate a line color for
     :return:
     """
 
-    if val not in lmap:
-        idx = len(lmap)
+    if val not in line_map:
+        idx = len(line_map)
         # Use default value if more line colors than specified are requested
-        lmap[val] = 'gray' if idx >= len(LINE_COLORS) else LINE_COLORS[idx]
+        line_map[val] = 'gray' if idx >= len(LINE_COLORS) else LINE_COLORS[idx]
 
-    return lmap[val]
+    return line_map[val]
 
 
 def sat_key(sat: str):
     """
     Provides the key for sorting sat orbits from closest to earth to furthest away from earth.
-    :param sat:
+    :param sat: The satellite name to sort
     :return:
     """
     try:
@@ -82,9 +88,10 @@ def create_output_dirs(out_dir: str):
         os.makedirs(data_dir)
 
 
-def unique_cross_product(df, *col_names):
+def unique_cross_product(df: pd.DataFrame, *col_names: str) -> Generator[Tuple[any, ...], None, None]:
     if len(col_names) < 1:
-        return []
+        yield tuple()
+        return
 
     unique_vals = tuple(list(df[name].unique()) for name in col_names)
     vids = [0 for _ in col_names]
@@ -100,10 +107,12 @@ def unique_cross_product(df, *col_names):
                 vids[cid] = 0
 
 
-def prepare_time_series_graph_data(df: pd.DataFrame, x_col: str, y_col: str, x_range, y_div: float,
-                                   extra_title_col: str, file_cols: list, file_tuple: tuple, data_cols: list,
-                                   point_map: dict, line_map: dict, point_type_indices: list, line_color_indices: list,
-                                   format_data_title) -> (pd.DataFrame, list, list):
+def prepare_time_series_graph_data(df: pd.DataFrame, x_col: str, y_col: str, x_range: Optional[Tuple[int, int]],
+                                   y_div: float, extra_title_col: str, file_cols: List[str],
+                                   file_tuple: Tuple[any, ...], data_cols: List[str], point_map: PointMap,
+                                   line_map: LineMap, point_type_indices: List[int], line_color_indices: List[int],
+                                   format_data_title: Callable[[Tuple[any, ...]], str]
+                                   ) -> Optional[Tuple[pd.DataFrame, List[str], List[tuple]]]:
     """
     Prepare data to be used in a time series graph.
 
@@ -176,27 +185,63 @@ def prepare_time_series_graph_data(df: pd.DataFrame, x_col: str, y_col: str, x_r
     return plot_df, plot_cmds, [data_tuple for _, data_tuple in gdata]
 
 
-def plot_time_series(df: pd.DataFrame, out_dir: str, analysis_name: str, file_cols: list, data_cols: list,
-                     file_col_prints: list, x_col: str, y_col: str, x_range: tuple, y_div: float, x_label: str,
-                     y_label: str, point_type_indices: list, line_color_indices: list, format_data_title,
-                     format_file_title, format_file_base, extra_title_col: str = None):
+def plot_time_series(df: pd.DataFrame, out_dir: str, analysis_name: str, file_cols: List[str], data_cols: List[str],
+                     x_col: str, y_col: str,  x_range: Optional[Tuple[int, int]], y_div: float,
+                     x_label: str, y_label: str, point_type_indices: List[int], line_color_indices: List[int],
+                     format_data_title: Callable[[DataTuple], str], format_file_title: Callable[[FileTuple], str],
+                     format_file_base: Callable[[FileTuple], str], extra_title_col: Optional[str] = None) -> None:
+    """
+    Plot a time series graph. It is built for, but not restricted to having a time unit (e.g. seconds) on the x-axis.
+
+    :param df: The dataframe to read the data from
+    :param out_dir: Directory where all output files are placed
+    :param analysis_name: A name for the analysis used in log statements
+    :param file_cols: Column names that define values for which separate graphs are generated
+    :param data_cols: Column names of the columns used for the data lines
+    :param x_col: Name of the column that has the data for the x-axis
+    :param y_col: Name of the column that has the data for the y-axis
+    :param x_range: (min, max) tuple for filtering the values for the x-axis
+    :param y_div: Number to divide the values on the y-axis by before plotting
+    :param x_label: Label for the x-axis of the generated graphs
+    :param y_label: LAbel for the y-axis of the generated graphs
+    :param point_type_indices: Indices of file_cols used to determine point type
+    :param line_color_indices: Indices of file_cols used to determine line color
+    :param format_data_title: Function to format the title of a data line, receives a data_tuple (data_cols values)
+    :param format_file_title: Function to format the title of a graph, receives a file_tuple (file_cols values)
+    :param format_file_base: Function to format the base name of a graph file, receives a file_tuple (file_cols values)
+    :param extra_title_col: Name of the column that holds a string prefix for the data title
+    """
+
     create_output_dirs(out_dir)
 
     # Ensures same point types and line colors across all graphs
-    point_map = {}
-    line_map = {}
+    point_map: PointMap = {}
+    line_map: LineMap = {}
 
     if extra_title_col is None:
         extra_title_col = 'default_extra_title'
         df[extra_title_col] = ""
 
     for file_tuple in unique_cross_product(df, *file_cols):
-        prepared_data = prepare_time_series_graph_data(df, x_col, y_col, x_range, y_div, extra_title_col, file_cols,
-                                                       file_tuple, data_cols, point_map, line_map, point_type_indices,
-                                                       line_color_indices, format_data_title)
+        print_file_tuple = ', '.join(["%s=%s" % (col, str(val)) for col, val in zip(file_cols, file_tuple)])
+        logger.debug("Generating %s %s", analysis_name, print_file_tuple)
+
+        prepared_data = prepare_time_series_graph_data(df,
+                                                       x_col=x_col,
+                                                       y_col=y_col,
+                                                       x_range=x_range,
+                                                       y_div=y_div,
+                                                       extra_title_col=extra_title_col,
+                                                       file_cols=file_cols,
+                                                       file_tuple=file_tuple,
+                                                       data_cols=data_cols,
+                                                       point_map=point_map,
+                                                       line_map=line_map,
+                                                       point_type_indices=point_type_indices,
+                                                       line_color_indices=line_color_indices,
+                                                       format_data_title=format_data_title)
         if prepared_data is None:
-            prv = ', '.join([("%s=" + pr) % (col, val) for col, pr, val in zip(file_cols, file_col_prints, file_tuple)])
-            logger.debug("No data for %s " + prv, analysis_name)
+            logger.debug("No data for %s %s", analysis_name, print_file_tuple)
             continue
 
         plot_df, plot_cmds, data_tuples = prepared_data
@@ -220,12 +265,154 @@ def plot_time_series(df: pd.DataFrame, out_dir: str, analysis_name: str, file_co
         plot_df.to_csv(os.path.join(out_dir, DATA_DIR, file_base + '.csv'))
 
 
-def analyze_netem_goodput(df: pd.DataFrame, out_dir: str, extra_title_col: str = None):
+def plot_time_series_matrix(df: pd.DataFrame, out_dir: str, analysis_name: str, file_cols: List[str],
+                            data_cols: List[str], matrix_x_col: str, matrix_y_col: str, x_col: str, y_col: str,
+                            x_range: Optional[Tuple[int, int]], y_div: float, x_label: str, y_label: str,
+                            point_type_indices: List[int], line_color_indices: List[int],
+                            format_data_title: Callable[[DataTuple], str],
+                            format_file_title: Callable[[FileTuple], str],
+                            format_file_base: Callable[[FileTuple], str],
+                            sort_matrix_x: Callable[[Iterable], Iterable] = lambda x: sorted(x),
+                            sort_matrix_y: Callable[[Iterable], Iterable] = lambda y: sorted(y),
+                            extra_title_col: Optional[str] = None) -> None:
+    """
+    Plot multiple time series graphs arranged like a 2d-matrix based on two data values. It is built for, but not
+    restricted to having a time unit (e.g. seconds) on the x-axis of each individual graph.
+
+    :param df: The dataframe to read the data from
+    :param out_dir: Directory where all output files are placed
+    :param analysis_name: A name for the analysis used in log statements
+    :param file_cols: Column names that define values for which separate graphs are generated
+    :param data_cols: Column names of the columns used for the data lines
+    :param matrix_x_col: Graphs are horizontally arranged based on values of this column
+    :param matrix_y_col: Graphs are vertically arranged based on values of this column
+    :param x_col: Name of the column that has the data for the x-axis
+    :param y_col: Name of the column that has the data for the y-axis
+    :param x_range: (min, max) tuple for filtering the values for the x-axis
+    :param y_div: Number to divide the values on the y-axis by before plotting
+    :param x_label: Label for the x-axis of the generated graphs
+    :param y_label: LAbel for the y-axis of the generated graphs
+    :param point_type_indices: Indices of file_cols used to determine point type
+    :param line_color_indices: Indices of file_cols used to determine line color
+    :param format_data_title: Function to format the title of a data line, receives a data_tuple (data_cols values)
+    :param format_file_title: Function to format the title of a graph, receives a file_tuple (file_cols values)
+    :param format_file_base: Function to format the base name of a graph file, receives a file_tuple (file_cols values)
+    :param sort_matrix_x: Function to sort values of the matrix_x_col, graphs will be arranged accordingly
+    :param sort_matrix_y: Function to sort values of the matrix_y_col, graphs will be arranged accordingly
+    :param extra_title_col: Name of the column that holds a string prefix for the data title
+    """
+
+    create_output_dirs(out_dir)
+
+    # Ensures same point types and line colors across all graphs
+    point_map: PointMap = {}
+    line_map: LineMap = {}
+
+    if extra_title_col is None:
+        extra_title_col = 'default_extra_title'
+        df[extra_title_col] = ""
+
+    for file_tuple in unique_cross_product(df, *file_cols):
+        print_file_tuple = ', '.join(["%s=%s" % (col, str(val)) for col, val in zip(file_cols, file_tuple)])
+        logger.debug("Generating %s matrix %s", analysis_name, print_file_tuple)
+
+        mx_unique = df[matrix_x_col].unique()
+        my_unique = df[matrix_y_col].unique()
+        mx_cnt = float(len(mx_unique))
+        my_cnt = float(len(my_unique))
+        sub_size = "%f, %f" % ((1.0 - MATRIX_KEY_SIZE) / mx_cnt, 1.0 / my_cnt)
+
+        subfigures = []
+        key_data = set()
+
+        # Generate subfigures
+        for my_idx, my_val in enumerate(sort_matrix_y(my_unique)):
+            y_max = np.ceil(df.loc[df[matrix_y_col] == my_val][y_col].max())
+            for mx_idx, mx_val in enumerate(sort_matrix_x(mx_unique)):
+                prepared_data = prepare_time_series_graph_data(df,
+                                                               x_col=x_col,
+                                                               y_col=y_col,
+                                                               x_range=x_range,
+                                                               y_div=y_div,
+                                                               extra_title_col=extra_title_col,
+                                                               file_cols=[*file_cols, matrix_x_col, matrix_y_col],
+                                                               file_tuple=(*file_tuple, mx_val, my_val),
+                                                               data_cols=data_cols,
+                                                               point_map=point_map,
+                                                               line_map=line_map,
+                                                               point_type_indices=point_type_indices,
+                                                               line_color_indices=line_color_indices,
+                                                               format_data_title=format_data_title)
+                if prepared_data is None:
+                    logger.debug("No data for %s %s, %s=%s, %s=%s", analysis_name, print_file_tuple, matrix_x_col,
+                                 str(mx_val), matrix_y_col, str(my_val))
+                    continue
+
+                plot_df, plot_cmds, data_tuples = prepared_data
+
+                # Add data for key
+                key_data.update(data_tuples)
+
+                subfigures.append(gnuplot.make_plot_data(
+                    plot_df,
+                    *plot_cmds,
+                    title='"%s"' % format_file_title(*file_tuple),
+                    key='off',
+                    xlabel='"%s"' % x_label,
+                    ylabel='"%s"' % y_label,
+                    xrange='[%d:%d]' % x_range,
+                    yrange='[0:%d]' % y_max,
+                    pointsize='0.5',
+                    size=sub_size,
+                    origin="%f, %f" % (mx_idx * (1.0 - MATRIX_KEY_SIZE) / mx_cnt, my_idx / my_cnt)
+                ))
+
+        # Check if a matrix plot is useful
+        if len(subfigures) <= 1:
+            logger.debug("Skipping %s matrix plot for %s, not enough individual plots", analysis_name, print_file_tuple)
+            continue
+
+        # Add null plot for key
+        key_cmds = [
+            "NaN with linespoints pointtype %d linecolor '%s' title '%s%s'" %
+            (
+                get_point_type(point_map, tuple(data_tuple[i + 1] for i in point_type_indices)),
+                get_line_color(line_map, (data_tuple[0], *tuple(data_tuple[i + 1] for i in line_color_indices))),
+                data_tuple[0] if len(data_tuple[0]) == 0 else ("%s " % data_tuple[0]),
+                format_data_title(*data_tuple[1:])
+            )
+            for data_tuple in key_data
+        ]
+        subfigures.append(gnuplot.make_plot(
+            *key_cmds,
+            key='inside center vertical samplen 2',
+            pointsize='0.5',
+            size="%f, 1" % MATRIX_KEY_SIZE,
+            origin="%f, 0" % (1.0 - MATRIX_KEY_SIZE),
+            title=None,
+            xtics=None,
+            ytics=None,
+            xlabel=None,
+            ylabel=None,
+            xrange=None,
+            yrange=None,
+            border=None,
+        ))
+
+        gnuplot.multiplot(
+            *subfigures,
+            title='"%s"' % format_file_title(*file_tuple),
+            term='pdf size %dcm %dcm' %
+                 (GRAPH_PLOT_SIZE_CM[0] * MATRIX_SIZE_SKEW * mx_cnt, GRAPH_PLOT_SIZE_CM[1] * my_cnt),
+            output='"%s.pdf"' % os.path.join(out_dir, GRAPH_DIR, format_file_base(*file_tuple)),
+        )
+
+
+def analyze_netem_goodput(df: pd.DataFrame, out_dir: str, extra_title_col: Optional[str] = None):
     plot_time_series(df, out_dir,
                      analysis_name='GOODPUT',
                      file_cols=['sat', 'rate', 'queue'],
                      data_cols=['protocol', 'pep', 'loss'],
-                     file_col_prints=['%s', '%.0f', '%d'],
                      x_col='second',
                      y_col='bps',
                      x_range=(0, GRAPH_PLOT_SECONDS),
@@ -243,12 +430,11 @@ def analyze_netem_goodput(df: pd.DataFrame, out_dir: str, extra_title_col: str =
                      extra_title_col=extra_title_col)
 
 
-def analyze_opensand_goodput(df: pd.DataFrame, out_dir: str, extra_title_col: str = None):
+def analyze_opensand_goodput(df: pd.DataFrame, out_dir: str, extra_title_col: Optional[str] = None):
     plot_time_series(df, out_dir,
                      analysis_name='GOODPUT',
                      file_cols=['sat', 'attenuation'],
                      data_cols=['protocol', 'pep', 'tbs', 'qbs', 'ubs'],
-                     file_col_prints=['%s', '%.0f', '%d'],
                      x_col='second',
                      y_col='bps',
                      x_range=(0, GRAPH_PLOT_SECONDS),
@@ -267,580 +453,159 @@ def analyze_opensand_goodput(df: pd.DataFrame, out_dir: str, extra_title_col: st
 
 
 def analyze_netem_goodput_matrix(df: pd.DataFrame, out_dir: str):
-    create_output_dirs(out_dir)
+    plot_time_series_matrix(df, out_dir,
+                            analysis_name='GOODPUT',
+                            file_cols=['queue'],
+                            data_cols=['protocol', 'pep', 'loss'],
+                            matrix_x_col='sat',
+                            matrix_y_col='rate',
+                            x_col='second',
+                            y_col='bps',
+                            x_range=(0, GRAPH_PLOT_SECONDS),
+                            y_div=1000,
+                            x_label="Time (s)",
+                            y_label="Goodput (kbps)",
+                            point_type_indices=[2],
+                            line_color_indices=[0, 1],
+                            format_data_title=lambda protocol, pep, loss:
+                            "%s%s l=%.2f%%" % (protocol.upper(), " (PEP)" if pep else "", loss * 100),
+                            format_file_title=lambda queue: "Goodput Evolution - BDP*%d" % queue,
+                            format_file_base=lambda queue: "matrix_goodput_q%d" % queue,
+                            sort_matrix_x=lambda xvals: sorted(xvals, key=sat_key),
+                            sort_matrix_y=lambda yvals: sorted(yvals, reverse=True))
 
-    # Ensures same point types and line colors across all graphs
-    point_map = {}
-    line_map = {}
 
-    for queue in df['queue'].unique():
-        sat_cnt = float(len(df['sat'].unique()))
-        rate_cnt = float(len(df['rate'].unique()))
-        sub_size = "%f, %f" % ((1.0 - MATRIX_KEY_SIZE) / sat_cnt, 1.0 / rate_cnt)
-
-        subfigures = []
-        key_data = set()
-
-        # Generate subfigures
-        for sat_idx, sat in enumerate(sorted(df['sat'].unique(), key=sat_key)):
-            for rate_idx, rate in enumerate(sorted(df['rate'].unique(), reverse=True)):
-                # Filter only data relevant for graph
-                gdf = df.loc[(df['sat'] == sat) & (df['rate'] == rate) & (df['queue'] == queue) & (
-                        df['second'] < GRAPH_PLOT_SECONDS)]
-                gdf = gdf[['protocol', 'pep', 'loss', 'second', 'bps']]
-                # Calculate mean average per second over all runs
-                gdf = gdf.groupby(['protocol', 'pep', 'loss', 'second']).mean()
-
-                # Collect all variations of data
-                gdata = []
-                if not gdf.empty:
-                    for protocol in df['protocol'].unique():
-                        for pep in df['pep'].unique():
-                            for loss in df['loss'].unique():
-                                try:
-                                    line_df = gdf.loc[(protocol, pep, loss), 'bps']
-                                except KeyError:
-                                    # Combination of protocol, pep and loss does not exist
-                                    continue
-                                if line_df.empty:
-                                    continue
-                                gdata.append((line_df, protocol, pep, loss))
-                gdata = sorted(gdata, key=lambda x: [x[1], x[2], x[3]])
-                if len(gdata) == 0:
-                    logger.debug("No data for graph (sat=%s, rate=%dmbps, queue=%d)" % (sat, rate, queue))
-                    continue
-
-                # Merge data to single dataframe
-                plot_df = pd.concat([x[0] for x in gdata], axis=1)
-                # Generate gnuplot commands
-                plot_cmds = [
-                    "using 1:($%d/1000) with linespoints pointtype %d linecolor '%s' title '%s%s l=%.2f%%'" %
-                    (
-                        index + 2,
-                        get_point_type(point_map, loss),
-                        get_line_color(line_map, (protocol, pep)),
-                        protocol.upper(),
-                        " (PEP)" if pep else "",
-                        loss * 100
-                    )
-                    for index, (_, protocol, pep, loss) in enumerate(gdata)
-                ]
-
-                # Add data for key
-                for _, protocol, pep, loss in gdata:
-                    key_data.add((protocol, pep, loss))
-
-                sub = gnuplot.make_plot_data(
-                    plot_df,
-                    *plot_cmds,
-                    title='"%s - %.0f Mbit/s"' % (sat, rate),
-                    key='off',
-                    ylabel='"Goodput (kbps)"',
-                    xlabel='"Time (s)"',
-                    xrange='[0:%d]' % GRAPH_PLOT_SECONDS,
-                    yrange='[0:%d]' % (rate * 2000,),
-                    pointsize='0.5',
-                    size=sub_size,
-                    origin="%f, %f" % (sat_idx * (1.0 - MATRIX_KEY_SIZE) / sat_cnt, rate_idx / rate_cnt)
-                )
-                subfigures.append(sub)
-
-        # Check if a matrix plot is useful
-        if len(subfigures) <= 1:
-            logger.debug("Skipping goodput matrix plot for q=%d, not enough individual runs", queue)
-            continue
-
-        # Null plot to add key
-        key_cmds = [
-            "NaN with linespoints pointtype %d linecolor '%s' title '%s%s l=%.2f%%'" %
-            (
-                get_point_type(point_map, loss),
-                get_line_color(line_map, (protocol, pep)),
-                protocol.upper(),
-                " (PEP)" if pep else "",
-                loss * 100
-            )
-            for protocol, pep, loss in sorted(key_data)
-        ]
-        subfigures.append(gnuplot.make_plot(
-            *key_cmds,
-            key='inside center vertical samplen 2',
-            pointsize='0.5',
-            size="%f, 1" % MATRIX_KEY_SIZE,
-            origin="%f, 0" % (1.0 - MATRIX_KEY_SIZE),
-            title=None,
-            xtics=None,
-            ytics=None,
-            xlabel=None,
-            ylabel=None,
-            border=None,
-        ))
-
-        gnuplot.multiplot(
-            *subfigures,
-            title='"Goodput Evolution - BDP*%d"' % queue,
-            term='pdf size %dcm, %dcm' %
-                 (GRAPH_PLOT_SIZE_CM[0] * MATRIX_SIZE_SKEW * sat_cnt, GRAPH_PLOT_SIZE_CM[1] * rate_cnt),
-            output='"%s"' % os.path.join(out_dir, GRAPH_DIR, "matrix_goodput_q%d.pdf" % queue),
-        )
+def analyze_opensand_goodput_matrix(df: pd.DataFrame, out_dir: str):
+    plot_time_series_matrix(df, out_dir,
+                            analysis_name='GOODPUT',
+                            file_cols=[],
+                            data_cols=['protocol', 'pep', 'tbs', 'qbs', 'ubs'],
+                            matrix_x_col='sat',
+                            matrix_y_col='attenuation',
+                            x_col='second',
+                            y_col='bps',
+                            x_range=(0, GRAPH_PLOT_SECONDS),
+                            y_div=1000,
+                            x_label="Time (s)",
+                            y_label="Goodput (kbps)",
+                            point_type_indices=[2, 3, 4],
+                            line_color_indices=[0, 1],
+                            format_data_title=lambda protocol, pep, tbs, qbs, ubs:
+                            "%s%s tbs=%s, qbs=%s, ubs=%s" % (protocol.upper(), " (PEP)" if pep else "", tbs, qbs, ubs),
+                            format_file_title=lambda: "Goodput Evolution",
+                            format_file_base=lambda: "matrix_goodput",
+                            sort_matrix_x=lambda xvals: sorted(xvals, key=sat_key),
+                            sort_matrix_y=lambda yvals: sorted(yvals, reverse=True))
 
 
 def analyze_netem_cwnd_evo(df: pd.DataFrame, out_dir: str):
-    create_output_dirs(out_dir)
-
-    # Ensures same point types and line colors across all graphs
-    point_map = {}
-    line_map = {}
-
-    # Generate graphs
-    for sat in df['sat'].unique():
-        for rate in df['rate'].unique():
-            for queue in df['queue'].unique():
-                # Filter only data relevant for graph
-                gdf = df.loc[(df['sat'] == sat) & (df['rate'] == rate) & (df['queue'] == queue) & (
-                        df['second'] < GRAPH_PLOT_SECONDS)]
-                if gdf.empty:
-                    logger.debug("No data for CWND_EVO sat=%s, rate=%.0f, queue=%d", sat, rate, queue)
-                    continue
-
-                gdf = gdf[['protocol', 'pep', 'loss', 'second', 'cwnd']]
-                # Calculate mean average per second over all runs
-                gdf = gdf.groupby(['protocol', 'pep', 'loss', 'second']).mean()
-
-                # Collect all variations of data
-                gdata = []
-                if not gdf.empty:
-                    for protocol in df['protocol'].unique():
-                        for pep in df['pep'].unique():
-                            for loss in df['loss'].unique():
-                                try:
-                                    line_df = gdf.loc[(protocol, pep, loss), 'cwnd']
-                                except KeyError:
-                                    # Combination of protocol, pep and loss does not exist
-                                    continue
-                                if line_df.empty:
-                                    continue
-                                gdata.append((line_df, protocol, pep, loss))
-                gdata = sorted(gdata, key=lambda x: [x[1], x[2], x[3]])
-                if len(gdata) == 0:
-                    logger.debug("No data for graph (sat=%s, rate=%dmbps, queue=%d)" % (sat, rate, queue))
-                    continue
-
-                # Merge data to single dataframe
-                plot_df = pd.concat([x[0] for x in gdata], axis=1)
-                # Generate gnuplot commands
-                plot_cmds = [
-                    "using 1:($%d/1000) with linespoints pointtype %d linecolor '%s' title '%s%s l=%.2f%%'" %
-                    (
-                        index + 2,
-                        get_point_type(point_map, loss),
-                        get_line_color(line_map, (protocol, pep)),
-                        protocol.upper(),
-                        " (PEP)" if pep else "",
-                        loss * 100
-                    )
-                    for index, (_, protocol, pep, loss) in enumerate(gdata)
-                ]
-
-                g = gnuplot.Gnuplot(log=True,
-                                    title='"Congestion Window Evolution - %s - %.0f Mbit/s - BDP*%d"'
-                                          % (sat, rate, queue),
-                                    key='outside right center vertical samplen 2',
-                                    ylabel='"Congestion window (KB)"',
-                                    xlabel='"Time (s)"',
-                                    xrange='[0:%d]' % GRAPH_PLOT_SECONDS,
-                                    term="pdf size %dcm, %dcm" % GRAPH_PLOT_SIZE_CM,
-                                    out='"%s"' % os.path.join(out_dir, GRAPH_DIR,
-                                                              "cwnd_evo_%s_r%s_q%d.pdf" % (sat, rate, queue)),
-                                    pointsize='0.5')
-                g.plot_data(plot_df, *plot_cmds)
-
-                # Save plot data
-                plot_df.columns = plot_cmds
-                plot_df.to_csv(os.path.join(out_dir, DATA_DIR, "cwnd_evo_%s_r%s_q%d.csv" % (sat, rate, queue)))
+    plot_time_series(df, out_dir,
+                     analysis_name='CWND_EVO',
+                     file_cols=['sat', 'rate', 'queue'],
+                     data_cols=['protocol', 'pep', 'loss'],
+                     x_col='second',
+                     y_col='cwnd',
+                     x_range=(0, GRAPH_PLOT_SECONDS),
+                     y_div=1000,
+                     x_label="Time (s)",
+                     y_label="Congestion window (KB)",
+                     point_type_indices=[2],
+                     line_color_indices=[0, 1],
+                     format_data_title=lambda protocol, pep, loss:
+                     "%s%s l=%.2f%%" % (protocol.upper(), " (PEP)" if pep else "", loss * 100),
+                     format_file_title=lambda sat, rate, queue:
+                     "Congestion Window Evolution - %s - %.0f Mbit/s - BDP*%d" % (sat, rate, queue),
+                     format_file_base=lambda sat, rate, queue:
+                     "cwnd_evo_%s_r%s_q%d" % (sat, rate, queue))
 
 
 def analyze_netem_cwnd_evo_matrix(df: pd.DataFrame, out_dir: str):
-    create_output_dirs(out_dir)
-
-    # Ensures same point types and line colors across all graphs
-    point_map = {}
-    line_map = {}
-
-    for queue in df['queue'].unique():
-        sat_cnt = float(len(df['sat'].unique()))
-        rate_cnt = float(len(df['rate'].unique()))
-        sub_size = "%f, %f" % ((1.0 - MATRIX_KEY_SIZE) / sat_cnt, 1.0 / rate_cnt)
-
-        subfigures = []
-        key_data = set()
-
-        # Generate subfigures
-        for sat_idx, sat in enumerate(sorted(df['sat'].unique(), key=sat_key)):
-            for rate_idx, rate in enumerate(sorted(df['rate'].unique(), reverse=True)):
-                # Filter only data relevant for graph
-                gdf = df.loc[(df['sat'] == sat) & (df['rate'] == rate) & (df['queue'] == queue) & (
-                        df['second'] < GRAPH_PLOT_SECONDS)]
-                gdf = gdf[['protocol', 'pep', 'loss', 'second', 'cwnd']]
-                # Calculate mean average per second over all runs
-                gdf = gdf.groupby(['protocol', 'pep', 'loss', 'second']).mean()
-
-                # Collect all variations of data
-                gdata = []
-                if not gdf.empty:
-                    for protocol in df['protocol'].unique():
-                        for pep in df['pep'].unique():
-                            for loss in df['loss'].unique():
-                                try:
-                                    line_df = gdf.loc[(protocol, pep, loss), 'cwnd']
-                                except KeyError:
-                                    # Combination of protocol, pep and loss does not exist
-                                    continue
-                                if line_df.empty:
-                                    continue
-                                gdata.append((line_df, protocol, pep, loss))
-                gdata = sorted(gdata, key=lambda x: [x[1], x[2], x[3]])
-                if len(gdata) == 0:
-                    logger.debug("No data for graph (sat=%s, rate=%dmbps, queue=%d)" % (sat, rate, queue))
-                    continue
-
-                # Merge data to single dataframe
-                plot_df = pd.concat([x[0] for x in gdata], axis=1)
-                # Generate gnuplot commands
-                plot_cmds = [
-                    "using 1:($%d/1000) with linespoints pointtype %d linecolor '%s' title '%s%s l=%.2f%%'" %
-                    (
-                        index + 2,
-                        get_point_type(point_map, loss),
-                        get_line_color(line_map, (protocol, pep)),
-                        protocol.upper(),
-                        " (PEP)" if pep else "",
-                        loss * 100
-                    )
-                    for index, (_, protocol, pep, loss) in enumerate(gdata)
-                ]
-
-                # Add data for key
-                for _, protocol, pep, loss in gdata:
-                    key_data.add((protocol, pep, loss))
-
-                sub = gnuplot.make_plot_data(
-                    plot_df,
-                    *plot_cmds,
-                    title='"%s - %.0f Mbit/s"' % (sat, rate),
-                    key='off',
-                    ylabel='"Congestion window (KB)"',
-                    xlabel='"Time (s)"',
-                    xrange='[0:%d]' % GRAPH_PLOT_SECONDS,
-                    yrange='[0:%d]' % (rate * 3000,),
-                    pointsize='0.5',
-                    size=sub_size,
-                    origin="%f, %f" % (sat_idx * (1.0 - MATRIX_KEY_SIZE) / sat_cnt, rate_idx / rate_cnt)
-                )
-                subfigures.append(sub)
-
-        # Check if a matrix plot is useful
-        if len(subfigures) <= 1:
-            logger.debug("Skipping congestion window evolution matrix plot for q=%d, not enough individual runs", queue)
-            continue
-
-        # Null plot to add key
-        key_cmds = [
-            "NaN with linespoints pointtype %d linecolor '%s' title '%s%s l=%.2f%%'" %
-            (
-                get_point_type(point_map, loss),
-                get_line_color(line_map, (protocol, pep)),
-                protocol.upper(),
-                " (PEP)" if pep else "",
-                loss * 100
-            )
-            for protocol, pep, loss in sorted(key_data)
-        ]
-        subfigures.append(gnuplot.make_plot(
-            *key_cmds,
-            key='inside center vertical samplen 2',
-            pointsize='0.5',
-            size="%f, 1" % MATRIX_KEY_SIZE,
-            origin="%f, 0" % (1.0 - MATRIX_KEY_SIZE),
-            title=None,
-            xtics=None,
-            ytics=None,
-            xlabel=None,
-            ylabel=None,
-            border=None,
-        ))
-
-        gnuplot.multiplot(
-            *subfigures,
-            title='"Congestion window evolution - BDP*%d"' % queue,
-            term='pdf size %dcm, %dcm' %
-                 (GRAPH_PLOT_SIZE_CM[0] * MATRIX_SIZE_SKEW * sat_cnt, GRAPH_PLOT_SIZE_CM[1] * rate_cnt),
-            output='"%s"' % os.path.join(out_dir, GRAPH_DIR, "matrix_cwnd_evo_q%d.pdf" % queue),
-        )
+    plot_time_series_matrix(df, out_dir,
+                            analysis_name='CWND_EVO',
+                            file_cols=['queue'],
+                            data_cols=['protocol', 'pep', 'loss'],
+                            matrix_x_col='sat',
+                            matrix_y_col='rate',
+                            x_col='second',
+                            y_col='cwnd',
+                            x_range=(0, GRAPH_PLOT_SECONDS),
+                            y_div=1000,
+                            x_label="Time (s)",
+                            y_label="Congestion window (KB)",
+                            point_type_indices=[2],
+                            line_color_indices=[0, 1],
+                            format_data_title=lambda protocol, pep, loss:
+                            "%s%s l=%.2f%%" % (protocol.upper(), " (PEP)" if pep else "", loss * 100),
+                            format_file_title=lambda queue: "Congestion Window Evolution - BDP*%d" % queue,
+                            format_file_base=lambda queue: "matrix_cwnd_evo_q%d" % queue,
+                            sort_matrix_x=lambda xvals: sorted(xvals, key=sat_key),
+                            sort_matrix_y=lambda yvals: sorted(yvals, reverse=True))
 
 
 def analyze_netem_packet_loss(df: pd.DataFrame, out_dir: str):
-    create_output_dirs(out_dir)
-
-    # Ensures same point types and line colors across all graphs
-    point_map = {}
-    line_map = {}
-
-    # Generate graphs
-    for sat in df['sat'].unique():
-        for rate in df['rate'].unique():
-            for queue in df['queue'].unique():
-                # Filter only data relevant for graph
-                gdf = df.loc[
-                    (df['sat'] == sat) & (df['rate'] == rate) & (df['queue'] == queue) & (
-                            df['second'] < GRAPH_PLOT_SECONDS)]
-                if gdf.empty:
-                    logger.debug("No data for PACKET_LOSS sat=%s, rate=%.0f, queue=%d", sat, rate, queue)
-                    continue
-
-                gdf = gdf[['protocol', 'pep', 'loss', 'second', 'packets_lost']]
-                # Calculate mean average per second over all runs
-                gdf = gdf.groupby(['protocol', 'pep', 'loss', 'second']).mean()
-
-                # Collect all variations of data
-                gdata = []
-                if not gdf.empty:
-                    for protocol in df['protocol'].unique():
-                        for pep in df['pep'].unique():
-                            for loss in df['loss'].unique():
-                                try:
-                                    line_df = gdf.loc[(protocol, pep, loss), 'packets_lost']
-                                except KeyError:
-                                    # Combination of protocol, pep and loss does not exist
-                                    continue
-                                if line_df.empty:
-                                    continue
-                                gdata.append((line_df, protocol, pep, loss))
-                gdata = sorted(gdata, key=lambda x: [x[1], x[2], x[3]])
-                if len(gdata) == 0:
-                    logger.debug("No data for graph (sat=%s, rate=%dmbps, queue=%d)" % (sat, rate, queue))
-                    continue
-
-                # Merge data to single dataframe
-                plot_df = pd.concat([x[0] for x in gdata], axis=1)
-                # Generate gnuplot commands
-                plot_cmds = [
-                    "using 1:%d with linespoints pointtype %d linecolor '%s' title '%s%s l=%.2f%%'" %
-                    (
-                        index + 2,
-                        get_point_type(point_map, loss),
-                        get_line_color(line_map, (protocol, pep)),
-                        protocol.upper(),
-                        " (PEP)" if pep else "",
-                        loss * 100
-                    )
-                    for index, (_, protocol, pep, loss) in enumerate(gdata)
-                ]
-
-                g = gnuplot.Gnuplot(log=True,
-                                    title='"Packet Loss - %s - %.0f Mbit/s - BDP*%d"' % (sat, rate, queue),
-                                    key='outside right center vertical samplen 2',
-                                    ylabel='"Packets lost"',
-                                    xlabel='"Time (s)"',
-                                    xrange='[0:%d]' % GRAPH_PLOT_SECONDS,
-                                    term="pdf size %dcm, %dcm" % GRAPH_PLOT_SIZE_CM,
-                                    out='"%s"' % os.path.join(out_dir, GRAPH_DIR,
-                                                              "packet_loss_%s_r%s_q%d.pdf" % (sat, rate, queue)),
-                                    pointsize='0.5')
-                g.plot_data(plot_df, *plot_cmds)
-
-                # Save plot data
-                plot_df.columns = plot_cmds
-                plot_df.to_csv(os.path.join(out_dir, DATA_DIR, "packet_loss_%s_r%s_q%d.csv" % (sat, rate, queue)))
+    plot_time_series(df, out_dir,
+                     analysis_name='PACKET_LOSS',
+                     file_cols=['sat', 'rate', 'queue'],
+                     data_cols=['protocol', 'pep', 'loss'],
+                     x_col='second',
+                     y_col='packets_lost',
+                     x_range=(0, GRAPH_PLOT_SECONDS),
+                     y_div=1,
+                     x_label="Time (s)",
+                     y_label="Packets lost",
+                     point_type_indices=[2],
+                     line_color_indices=[0, 1],
+                     format_data_title=lambda protocol, pep, loss:
+                     "%s%s l=%.2f%%" % (protocol.upper(), " (PEP)" if pep else "", loss * 100),
+                     format_file_title=lambda sat, rate, queue:
+                     "Packet Loss - %s - %.0f Mbit/s - BDP*%d" % (sat, rate, queue),
+                     format_file_base=lambda sat, rate, queue:
+                     "packet_loss_%s_r%s_q%d" % (sat, rate, queue))
 
 
 def analyze_netem_packet_loss_matrix(df: pd.DataFrame, out_dir: str):
-    create_output_dirs(out_dir)
-
-    # Ensures same point types and line colors across all graphs
-    point_map = {}
-    line_map = {}
-
-    for queue in df['queue'].unique():
-        sat_cnt = float(len(df['sat'].unique()))
-        rate_cnt = float(len(df['rate'].unique()))
-        sub_size = "%f, %f" % ((1.0 - MATRIX_KEY_SIZE) / sat_cnt, 1.0 / rate_cnt)
-
-        subfigures = []
-        key_data = set()
-
-        # Generate subfigures
-        for rate_idx, rate in enumerate(sorted(df['rate'].unique(), reverse=True)):
-            ymax = df.loc[df['rate'] == rate]['packets_lost'].max()
-            for sat_idx, sat in enumerate(sorted(df['sat'].unique(), key=sat_key)):
-                # Filter only data relevant for graph
-                gdf = df.loc[(df['sat'] == sat) & (df['rate'] == rate) & (df['queue'] == queue) & (
-                        df['second'] < GRAPH_PLOT_SECONDS)]
-                gdf = gdf[['protocol', 'pep', 'loss', 'second', 'packets_lost']]
-                # Calculate mean average per second over all runs
-                gdf = gdf.groupby(['protocol', 'pep', 'loss', 'second']).mean()
-
-                # Collect all variations of data
-                gdata = []
-                if not gdf.empty:
-                    for protocol in df['protocol'].unique():
-                        for pep in df['pep'].unique():
-                            for loss in df['loss'].unique():
-                                try:
-                                    line_df = gdf.loc[(protocol, pep, loss), 'packets_lost']
-                                except KeyError:
-                                    # Combination of protocol, pep and loss does not exist
-                                    continue
-                                if line_df.empty:
-                                    continue
-                                gdata.append((line_df, protocol, pep, loss))
-                gdata = sorted(gdata, key=lambda x: [x[1], x[2], x[3]])
-                if len(gdata) == 0:
-                    logger.debug("No data for graph (sat=%s, rate=%dmbps, queue=%d)" % (sat, rate, queue))
-                    continue
-
-                # Merge data to single dataframe
-                plot_df = pd.concat([x[0] for x in gdata], axis=1)
-                # Generate gnuplot commands
-                plot_cmds = [
-                    "using 1:%d with linespoints pointtype %d linecolor '%s' title '%s%s l=%.2f%%'" %
-                    (
-                        index + 2,
-                        get_point_type(point_map, loss),
-                        get_line_color(line_map, (protocol, pep)),
-                        protocol.upper(),
-                        " (PEP)" if pep else "",
-                        loss * 100
-                    )
-                    for index, (_, protocol, pep, loss) in enumerate(gdata)
-                ]
-
-                # Add data for key
-                for _, protocol, pep, loss in gdata:
-                    key_data.add((protocol, pep, loss))
-
-                sub = gnuplot.make_plot_data(
-                    plot_df,
-                    *plot_cmds,
-                    title='"%s - %.0f Mbit/s"' % (sat, rate),
-                    ylabel='"Packets lost"',
-                    xlabel='"Time (s)"',
-                    xrange='[0:%d]' % GRAPH_PLOT_SECONDS,
-                    yrange='[0:%d]' % (ymax,),
-                    pointsize='0.5',
-                    key='off',
-                    size=sub_size,
-                    origin="%f, %f" % (sat_idx * (1.0 - MATRIX_KEY_SIZE) / sat_cnt, rate_idx / rate_cnt)
-                )
-                subfigures.append(sub)
-
-        # Check if a matrix plot is useful
-        if len(subfigures) <= 1:
-            logger.debug("Skipping packet loss matrix plot for q=%d, not enough individual runs", queue)
-            continue
-
-        # Null plot to add key
-        key_cmds = [
-            "NaN with linespoints pointtype %d linecolor '%s' title '%s%s l=%.2f%%'" %
-            (
-                get_point_type(point_map, loss),
-                get_line_color(line_map, (protocol, pep)),
-                protocol.upper(),
-                " (PEP)" if pep else "",
-                loss * 100
-            )
-            for protocol, pep, loss in sorted(key_data)
-        ]
-        subfigures.append(gnuplot.make_plot(
-            *key_cmds,
-            key='inside center vertical samplen 2',
-            pointsize='0.5',
-            size="%f, 1" % MATRIX_KEY_SIZE,
-            origin="%f, 0" % (1.0 - MATRIX_KEY_SIZE),
-            title=None,
-            xtics=None,
-            ytics=None,
-            xlabel=None,
-            ylabel=None,
-            border=None,
-        ))
-
-        gnuplot.multiplot(
-            *subfigures,
-            title='"Packet loss - BDP*%d"' % queue,
-            term='pdf size %dcm, %dcm' %
-                 (GRAPH_PLOT_SIZE_CM[0] * MATRIX_SIZE_SKEW * sat_cnt, GRAPH_PLOT_SIZE_CM[1] * rate_cnt),
-            output='"%s"' % os.path.join(out_dir, GRAPH_DIR, "matrix_packet_loss_q%d.pdf" % queue),
-        )
+    plot_time_series_matrix(df, out_dir,
+                            analysis_name='PACKET_LOSS',
+                            file_cols=['queue'],
+                            data_cols=['protocol', 'pep', 'loss'],
+                            matrix_x_col='sat',
+                            matrix_y_col='rate',
+                            x_col='second',
+                            y_col='cwnd',
+                            x_range=(0, GRAPH_PLOT_SECONDS),
+                            y_div=1000,
+                            x_label="Time (s)",
+                            y_label="Congestion window (KB)",
+                            point_type_indices=[2],
+                            line_color_indices=[0, 1],
+                            format_data_title=lambda protocol, pep, loss:
+                            "%s%s l=%.2f%%" % (protocol.upper(), " (PEP)" if pep else "", loss * 100),
+                            format_file_title=lambda queue: "Packet Loss - BDP*%d" % queue,
+                            format_file_base=lambda queue: "matrix_packet_loss_q%d" % queue,
+                            sort_matrix_x=lambda xvals: sorted(xvals, key=sat_key),
+                            sort_matrix_y=lambda yvals: sorted(yvals, reverse=True))
 
 
 def analyze_netem_rtt(df: pd.DataFrame, out_dir: str):
-    create_output_dirs(out_dir)
-
-    # Ensures same point types and line colors across all graphs
-    point_map = {}
-    line_map = {}
-
-    # Generate graphs
-    for sat in df['sat'].unique():
-        for rate in df['rate'].unique():
-            for queue in df['queue'].unique():
-                # Filter only data relevant for graph
-                gdf = pd.DataFrame(df.loc[(df['sat'] == sat) & (df['rate'] == rate) & (df['queue'] == queue)])
-                if gdf.empty:
-                    logger.debug("No data for RTT sat=%s, rate=%.0f, queue=%d", sat, rate, queue)
-                    continue
-
-                gdf['second'] = (gdf['seq'] / 100).astype(np.int)
-                gdf = gdf[['loss', 'second', 'rtt']]
-                # Calculate mean average per second over all runs
-                gdf = gdf.groupby(['loss', 'second']).mean()
-
-                # Collect all variations of data
-                gdata = []
-                if not gdf.empty:
-                    for loss in df['loss'].unique():
-                        try:
-                            line_df = gdf.loc[(loss,), 'rtt']
-                        except KeyError:
-                            # Selected loss does not exist
-                            continue
-                        if line_df.empty:
-                            continue
-                        gdata.append((line_df, loss))
-                gdata = sorted(gdata, key=lambda x: x[1])
-                if len(gdata) == 0:
-                    logger.debug("No data for graph (sat=%s, rate=%dmbps, queue=%d)" % (sat, rate, queue))
-                    continue
-
-                # Merge data to single dataframe
-                plot_df = pd.concat([x[0] for x in gdata], axis=1)
-                # Generate gnuplot commands
-                plot_cmds = [
-                    "using 1:%d with linespoints pointtype %d linecolor '%s' title 'l=%.2f%%'" %
-                    (
-                        index + 2,
-                        get_point_type(point_map, loss),
-                        get_line_color(line_map, loss),
-                        loss * 100
-                    )
-                    for index, (_, loss) in enumerate(gdata)
-                ]
-
-                g = gnuplot.Gnuplot(log=True,
-                                    title='"Round Trip Time - %s - %.0f Mbit/s - BDP*%d"' % (sat, rate, queue),
-                                    key='outside right center vertical samplen 2',
-                                    ylabel='"RTT (ms)"',
-                                    xlabel='"Time (s)"',
-                                    term="pdf size %dcm, %dcm" % GRAPH_PLOT_SIZE_CM,
-                                    out='"%s"' % os.path.join(out_dir, GRAPH_DIR,
-                                                              "rtt_%s_r%s_q%d.pdf" % (sat, rate, queue)),
-                                    pointsize='0.5')
-                g.plot_data(plot_df, *plot_cmds)
-
-                # Save plot data
-                plot_df.columns = plot_cmds
-                plot_df.to_csv(os.path.join(out_dir, DATA_DIR, "rtt_%s_r%s_q%d.csv" % (sat, rate, queue)))
+    df['second'] = (df['seq'] / 100).astype(np.int)
+    plot_time_series(df, out_dir,
+                     analysis_name='RTT',
+                     file_cols=['sat', 'rate', 'queue'],
+                     data_cols=['loss'],
+                     x_col='second',
+                     y_col='rtt',
+                     x_range=None,
+                     y_div=1,
+                     x_label="Time (s)",
+                     y_label="RTT (ms)",
+                     point_type_indices=[0],
+                     line_color_indices=[0],
+                     format_data_title=lambda loss:
+                     "l=%.2f%%" % (loss * 100),
+                     format_file_title=lambda sat, rate, queue:
+                     "Round Trip Time - %s - %.0f Mbit/s - BDP*%d" % (sat, rate, queue),
+                     format_file_base=lambda sat, rate, queue:
+                     "rtt_%s_r%s_q%d" % (sat, rate, queue))
 
 
 def analyze_netem_connection_times(df: pd.DataFrame, out_dir: str, time_val: str):
@@ -1039,6 +804,7 @@ def analyze_all(parsed_results: dict, measure_type: Type, out_dir="."):
         analyze_netem_goodput_matrix(df_goodput, out_dir)
     elif measure_type == Type.OPENSAND:
         analyze_opensand_goodput(df_goodput, out_dir)
+        analyze_opensand_goodput_matrix(df_goodput, out_dir)
 
     logger.info("Analyzing congestion window evolution")
     cwnd_evo_cols = ['protocol', 'pep', 'sat', 'run', 'second', 'cwnd']
