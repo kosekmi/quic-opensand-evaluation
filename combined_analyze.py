@@ -17,7 +17,7 @@ def analyze_quic_goodput(out_dir: str, data: list):
 
     # Combine all dataframes
     df_quic_goodput = pd.concat([df for _, df in quic_data], axis=0, ignore_index=True)
-    analyze.analyze_goodput(df_quic_goodput, out_dir, extra_title_col='combined_title')
+    analyze.analyze_netem_goodput(df_quic_goodput, out_dir, extra_title_col='combined_title')
 
 
 def parse_args(argv):

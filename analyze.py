@@ -4,9 +4,7 @@ import os
 import sys
 import logging
 from pygnuplot import gnuplot
-
-GRAPH_DIR = 'graphs'
-DATA_DIR = 'data'
+from common import Type, GRAPH_DIR, DATA_DIR
 
 LINE_COLORS = ['black', 'red', 'dark-violet', 'blue', 'dark-green', 'dark-orange', 'gold', 'cyan']
 POINT_TYPES = [2, 4, 8, 10, 6, 12, 9, 11]
@@ -84,7 +82,7 @@ def create_output_dirs(out_dir: str):
         os.makedirs(data_dir)
 
 
-def analyze_goodput(df: pd.DataFrame, out_dir: str, extra_title_col: str = None):
+def analyze_netem_goodput(df: pd.DataFrame, out_dir: str, extra_title_col: str = None):
     create_output_dirs(out_dir)
 
     # Ensures same point types and line colors across all graphs
@@ -100,7 +98,8 @@ def analyze_goodput(df: pd.DataFrame, out_dir: str, extra_title_col: str = None)
         for rate in df['rate'].unique():
             for queue in df['queue'].unique():
                 # Filter only data relevant for graph
-                gdf = df.loc[(df['sat'] == sat) & (df['rate'] == rate) & (df['queue'] == queue) & (df['second'] < GRAPH_PLOT_SECONDS)]
+                gdf = df.loc[(df['sat'] == sat) & (df['rate'] == rate) & (df['queue'] == queue) & (
+                            df['second'] < GRAPH_PLOT_SECONDS)]
                 if gdf.empty:
                     logger.debug("No data for GOODPUT sat=%s, rate=%.0f, queue=%d", sat, rate, queue)
                     continue
@@ -163,7 +162,7 @@ def analyze_goodput(df: pd.DataFrame, out_dir: str, extra_title_col: str = None)
                 plot_df.to_csv(os.path.join(out_dir, DATA_DIR, "goodput_%s_r%s_q%d.csv" % (sat, rate, queue)))
 
 
-def analyze_goodput_matrix(df: pd.DataFrame, out_dir: str):
+def analyze_netem_goodput_matrix(df: pd.DataFrame, out_dir: str):
     create_output_dirs(out_dir)
 
     # Ensures same point types and line colors across all graphs
@@ -182,7 +181,8 @@ def analyze_goodput_matrix(df: pd.DataFrame, out_dir: str):
         for sat_idx, sat in enumerate(sorted(df['sat'].unique(), key=sat_key)):
             for rate_idx, rate in enumerate(sorted(df['rate'].unique(), reverse=True)):
                 # Filter only data relevant for graph
-                gdf = df.loc[(df['sat'] == sat) & (df['rate'] == rate) & (df['queue'] == queue) & (df['second'] < GRAPH_PLOT_SECONDS)]
+                gdf = df.loc[(df['sat'] == sat) & (df['rate'] == rate) & (df['queue'] == queue) & (
+                            df['second'] < GRAPH_PLOT_SECONDS)]
                 gdf = gdf[['protocol', 'pep', 'loss', 'second', 'bps']]
                 # Calculate mean average per second over all runs
                 gdf = gdf.groupby(['protocol', 'pep', 'loss', 'second']).mean()
@@ -281,7 +281,7 @@ def analyze_goodput_matrix(df: pd.DataFrame, out_dir: str):
         )
 
 
-def analyze_cwnd_evo(df: pd.DataFrame, out_dir: str):
+def analyze_netem_cwnd_evo(df: pd.DataFrame, out_dir: str):
     create_output_dirs(out_dir)
 
     # Ensures same point types and line colors across all graphs
@@ -293,7 +293,8 @@ def analyze_cwnd_evo(df: pd.DataFrame, out_dir: str):
         for rate in df['rate'].unique():
             for queue in df['queue'].unique():
                 # Filter only data relevant for graph
-                gdf = df.loc[(df['sat'] == sat) & (df['rate'] == rate) & (df['queue'] == queue) & (df['second'] < GRAPH_PLOT_SECONDS)]
+                gdf = df.loc[(df['sat'] == sat) & (df['rate'] == rate) & (df['queue'] == queue) & (
+                            df['second'] < GRAPH_PLOT_SECONDS)]
                 if gdf.empty:
                     logger.debug("No data for CWND_EVO sat=%s, rate=%.0f, queue=%d", sat, rate, queue)
                     continue
@@ -355,7 +356,7 @@ def analyze_cwnd_evo(df: pd.DataFrame, out_dir: str):
                 plot_df.to_csv(os.path.join(out_dir, DATA_DIR, "cwnd_evo_%s_r%s_q%d.csv" % (sat, rate, queue)))
 
 
-def analyze_cwnd_evo_matrix(df: pd.DataFrame, out_dir: str):
+def analyze_netem_cwnd_evo_matrix(df: pd.DataFrame, out_dir: str):
     create_output_dirs(out_dir)
 
     # Ensures same point types and line colors across all graphs
@@ -374,7 +375,8 @@ def analyze_cwnd_evo_matrix(df: pd.DataFrame, out_dir: str):
         for sat_idx, sat in enumerate(sorted(df['sat'].unique(), key=sat_key)):
             for rate_idx, rate in enumerate(sorted(df['rate'].unique(), reverse=True)):
                 # Filter only data relevant for graph
-                gdf = df.loc[(df['sat'] == sat) & (df['rate'] == rate) & (df['queue'] == queue) & (df['second'] < GRAPH_PLOT_SECONDS)]
+                gdf = df.loc[(df['sat'] == sat) & (df['rate'] == rate) & (df['queue'] == queue) & (
+                            df['second'] < GRAPH_PLOT_SECONDS)]
                 gdf = gdf[['protocol', 'pep', 'loss', 'second', 'cwnd']]
                 # Calculate mean average per second over all runs
                 gdf = gdf.groupby(['protocol', 'pep', 'loss', 'second']).mean()
@@ -473,7 +475,7 @@ def analyze_cwnd_evo_matrix(df: pd.DataFrame, out_dir: str):
         )
 
 
-def analyze_packet_loss(df: pd.DataFrame, out_dir: str):
+def analyze_netem_packet_loss(df: pd.DataFrame, out_dir: str):
     create_output_dirs(out_dir)
 
     # Ensures same point types and line colors across all graphs
@@ -486,7 +488,8 @@ def analyze_packet_loss(df: pd.DataFrame, out_dir: str):
             for queue in df['queue'].unique():
                 # Filter only data relevant for graph
                 gdf = df.loc[
-                    (df['sat'] == sat) & (df['rate'] == rate) & (df['queue'] == queue) & (df['second'] < GRAPH_PLOT_SECONDS)]
+                    (df['sat'] == sat) & (df['rate'] == rate) & (df['queue'] == queue) & (
+                                df['second'] < GRAPH_PLOT_SECONDS)]
                 if gdf.empty:
                     logger.debug("No data for PACKET_LOSS sat=%s, rate=%.0f, queue=%d", sat, rate, queue)
                     continue
@@ -547,7 +550,7 @@ def analyze_packet_loss(df: pd.DataFrame, out_dir: str):
                 plot_df.to_csv(os.path.join(out_dir, DATA_DIR, "packet_loss_%s_r%s_q%d.csv" % (sat, rate, queue)))
 
 
-def analyze_packet_loss_matrix(df: pd.DataFrame, out_dir: str):
+def analyze_netem_packet_loss_matrix(df: pd.DataFrame, out_dir: str):
     create_output_dirs(out_dir)
 
     # Ensures same point types and line colors across all graphs
@@ -567,7 +570,8 @@ def analyze_packet_loss_matrix(df: pd.DataFrame, out_dir: str):
             ymax = df.loc[df['rate'] == rate]['packets_lost'].max()
             for sat_idx, sat in enumerate(sorted(df['sat'].unique(), key=sat_key)):
                 # Filter only data relevant for graph
-                gdf = df.loc[(df['sat'] == sat) & (df['rate'] == rate) & (df['queue'] == queue) & (df['second'] < GRAPH_PLOT_SECONDS)]
+                gdf = df.loc[(df['sat'] == sat) & (df['rate'] == rate) & (df['queue'] == queue) & (
+                            df['second'] < GRAPH_PLOT_SECONDS)]
                 gdf = gdf[['protocol', 'pep', 'loss', 'second', 'packets_lost']]
                 # Calculate mean average per second over all runs
                 gdf = gdf.groupby(['protocol', 'pep', 'loss', 'second']).mean()
@@ -666,7 +670,7 @@ def analyze_packet_loss_matrix(df: pd.DataFrame, out_dir: str):
         )
 
 
-def analyze_rtt(df: pd.DataFrame, out_dir: str):
+def analyze_netem_rtt(df: pd.DataFrame, out_dir: str):
     create_output_dirs(out_dir)
 
     # Ensures same point types and line colors across all graphs
@@ -735,7 +739,7 @@ def analyze_rtt(df: pd.DataFrame, out_dir: str):
                 plot_df.to_csv(os.path.join(out_dir, DATA_DIR, "rtt_%s_r%s_q%d.csv" % (sat, rate, queue)))
 
 
-def analyze_connection_times(df: pd.DataFrame, out_dir: str, time_val: str):
+def analyze_netem_connection_times(df: pd.DataFrame, out_dir: str, time_val: str):
     create_output_dirs(out_dir)
 
     # Ensures same point types and line colors across all graphs
@@ -754,7 +758,8 @@ def analyze_connection_times(df: pd.DataFrame, out_dir: str, time_val: str):
                         (df['queue'] == queue)
                         ])
                 if gdf.empty:
-                    logger.debug("No data for CON_TIMES(%s) protocol=%s, pep=%s, queue=%d", time_val, protocol, pep, queue)
+                    logger.debug("No data for CON_TIMES(%s) protocol=%s, pep=%s, queue=%d", time_val, protocol, pep,
+                                 queue)
                     continue
 
                 gdf = gdf[['sat', 'rate', 'loss', time_val]]
@@ -854,6 +859,8 @@ def analyze_stats(df_stats, df_runs, out_dir="."):
         logger.info("No stats data, skipping graph generation")
         return
 
+    create_output_dirs(out_dir)
+
     def interpolate_stat(df, time, col_name):
         idx_low = df.index.get_loc(time, method='pad')
         idx_high = df.index.get_loc(time, method='backfill')
@@ -881,7 +888,8 @@ def analyze_stats(df_stats, df_runs, out_dir="."):
                         yrange="[0:%d]" % y_max,
                         label=df_runs.apply(
                             lambda row: '"%s" at %f,%f left rotate back textcolor \'gray\' offset 0,.5' %
-                                        (row['name'], row['time'], interpolate_stat(df_stats, row['time'], 'ram_usage')),
+                                        (
+                                        row['name'], row['time'], interpolate_stat(df_stats, row['time'], 'ram_usage')),
                             axis=1).to_list(),
                         out='"%s"' % os.path.join(out_dir, GRAPH_DIR, "stats_ram.pdf"),
                         pointsize='0.5')
@@ -910,48 +918,70 @@ def analyze_stats(df_stats, df_runs, out_dir="."):
     g.plot_data(df_stats[['cpu_load']], plot_cmd)
 
 
-def analyze_all(parsed_results: dict, out_dir="."):
+def analyze_all(parsed_results: dict, measure_type: Type, out_dir="."):
     logger.info("Analyzing goodput")
-    goodput_cols = ['protocol', 'pep', 'sat', 'rate', 'loss', 'queue', 'run', 'second', 'bps']
+    goodput_cols = ['protocol', 'pep', 'sat', 'run', 'second', 'bps']
+    if measure_type == Type.NETEM:
+        goodput_cols.extend(['rate', 'loss', 'queue'])
+    elif measure_type == Type.OPENSAND:
+        goodput_cols.extend(['attenuation', 'tbs', 'qbs', 'ubs'])
     df_goodput = pd.concat([
         parsed_results['quic_client'][goodput_cols],
         parsed_results['tcp_client'][goodput_cols],
     ], axis=0, ignore_index=True)
-    analyze_goodput(df_goodput, out_dir)
-    analyze_goodput_matrix(df_goodput, out_dir)
+    if measure_type == Type.NETEM:
+        analyze_netem_goodput(df_goodput, out_dir)
+        analyze_netem_goodput_matrix(df_goodput, out_dir)
 
     logger.info("Analyzing congestion window evolution")
-    cwnd_evo_cols = ['protocol', 'pep', 'sat', 'rate', 'loss', 'queue', 'run', 'second', 'cwnd']
+    cwnd_evo_cols = ['protocol', 'pep', 'sat', 'run', 'second', 'cwnd']
+    if measure_type == Type.NETEM:
+        cwnd_evo_cols.extend(['rate', 'loss', 'queue'])
+    elif measure_type == Type.OPENSAND:
+        cwnd_evo_cols.extend(['attenuation', 'tbs', 'qbs', 'ubs'])
     df_cwnd_evo = pd.concat([
         parsed_results['quic_server'][cwnd_evo_cols],
         parsed_results['tcp_server'][cwnd_evo_cols],
     ], axis=0, ignore_index=True)
-    analyze_cwnd_evo(df_cwnd_evo, out_dir)
-    analyze_cwnd_evo_matrix(df_cwnd_evo, out_dir)
+    if measure_type == Type.NETEM:
+        analyze_netem_cwnd_evo(df_cwnd_evo, out_dir)
+        analyze_netem_cwnd_evo_matrix(df_cwnd_evo, out_dir)
 
     logger.info("Analyzing packet loss")
-    pkt_loss_cols = ['protocol', 'pep', 'sat', 'rate', 'loss', 'queue', 'run', 'second', 'packets_lost']
+    pkt_loss_cols = ['protocol', 'pep', 'sat', 'run', 'second', 'packets_lost']
+    if measure_type == Type.NETEM:
+        pkt_loss_cols.extend(['rate', 'loss', 'queue'])
+    elif measure_type == Type.OPENSAND:
+        pkt_loss_cols.extend(['attenuation', 'tbs', 'qbs', 'ubs'])
     df_pkt_loss = pd.concat([
         parsed_results['quic_server'][pkt_loss_cols],
         parsed_results['tcp_server'][pkt_loss_cols],
     ], axis=0, ignore_index=True)
-    analyze_packet_loss(df_pkt_loss, out_dir)
-    analyze_packet_loss_matrix(df_pkt_loss, out_dir)
+    if measure_type == Type.NETEM:
+        analyze_netem_packet_loss(df_pkt_loss, out_dir)
+        analyze_netem_packet_loss_matrix(df_pkt_loss, out_dir)
 
     logger.info("Analyzing RTT")
-    rtt_cols = ['sat', 'rate', 'loss', 'queue', 'seq', 'rtt']
+    rtt_cols = ['sat', 'seq', 'rtt']
+    if measure_type == Type.NETEM:
+        rtt_cols.extend(['rate', 'loss', 'queue'])
+    elif measure_type == Type.OPENSAND:
+        rtt_cols.extend(['attenuation', 'tbs', 'qbs', 'ubs'])
     df_rtt = parsed_results['ping_raw'][rtt_cols]
-    analyze_rtt(df_rtt, out_dir)
+    if measure_type == Type.NETEM:
+        analyze_netem_rtt(df_rtt, out_dir)
 
     logger.info("Analyzing TTFB")
     df_con_times = pd.concat([
         parsed_results['quic_times'],
         parsed_results['tcp_times'],
     ], axis=0, ignore_index=True)
-    analyze_connection_times(df_con_times, out_dir, time_val='ttfb')
+    if measure_type == Type.NETEM:
+        analyze_netem_connection_times(df_con_times, out_dir, time_val='ttfb')
 
     logger.info("Analyzing connection establishment")
-    analyze_connection_times(df_con_times, out_dir, time_val='con_est')
+    if measure_type == Type.NETEM:
+        analyze_netem_connection_times(df_con_times, out_dir, time_val='con_est')
 
     logger.info("Analyzing stats")
     df_stats = pd.DataFrame(parsed_results['stats'])
