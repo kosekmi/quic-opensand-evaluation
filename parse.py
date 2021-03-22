@@ -27,6 +27,11 @@ class Mode(Enum):
         return self == Mode.ANALYZE or self == Mode.ALL
 
 
+class Type(Enum):
+    NETEM = 1
+    OPENSAND = 2
+
+
 def load_json_file(path: str):
     """
     Loads and parses the content of a json file.
@@ -420,6 +425,20 @@ def parse_log(result_set_path):
     return runs_df, stats_df
 
 
+def detect_measure_type(result_set_path):
+    logger.info("Detecting type of measurement")
+
+    path = os.path.join(result_set_path, "opensand.log")
+    if os.path.isfile(path):
+        return Type.OPENSAND
+
+    path = os.path.join(result_set_path, "measure.log")
+    if os.path.isfile(path):
+        return Type.NETEM
+
+    return None
+
+
 def measure_folders(root_folder):
     for folder_name in os.listdir(root_folder):
         path = os.path.join(root_folder, folder_name)
@@ -441,8 +460,7 @@ def extend_df(df: pd.DataFrame, by: pd.DataFrame, **kwargs):
 
     aliases = {
         'sat': ['delay', 'orbit'],
-        'queue': ['queue_overhead_factor', 'runs'],
-        'loss': ['attenuation'],
+        'queue': ['queue_overhead_factor'],
     }
     missing_cols = set(df.columns).difference(set(by.columns))
     for col_name in missing_cols:
@@ -508,6 +526,10 @@ def fix_dtypes(df):
         'name': np.str,
         'cpu_load': np.float32,
         'ram_usage': np.float32,
+        'attenuation': np.int32,
+        'tbs': np.str,
+        'qbs': np.str,
+        'ubs': np.str,
     }
 
     # Set defaults
@@ -533,8 +555,20 @@ def parse_config(in_dir: str, folder_name: str):
 
 def parse(in_dir="~/measure"):
     logger.info("Parsing measurement results in '%s'", in_dir)
+
+    measure_type = detect_measure_type(in_dir)
+    if measure_type is None:
+        logger.error("Failed to detect measurement type!")
+        sys.exit(4)
+    logger.info("Measure type: %s", measure_type.name)
+
     configs = []
-    config_columns = ['protocol', 'pep', 'sat', 'rate', 'loss', 'queue']
+    config_columns = ['protocol', 'pep', 'sat']
+    if measure_type == Type.NETEM:
+        config_columns.extend(['rate', 'loss', 'queue'])
+    elif measure_type == Type.OPENSAND:
+        config_columns.extend(['attenuation', 'tbs', 'qbs', 'ubs'])
+
     df_quic_client = pd.DataFrame(columns=[*config_columns,
                                            'run', 'second', 'bps', 'bytes', 'packets_received'])
     df_quic_server = pd.DataFrame(columns=[*config_columns,
@@ -641,7 +675,7 @@ def parse(in_dir="~/measure"):
     df_config = pd.DataFrame(data=configs)
     df_config.set_index('name', inplace=True)
 
-    return {
+    return measure_type, {
         'config': df_config,
         'quic_client': df_quic_client,
         'quic_server': df_quic_server,
@@ -703,10 +737,11 @@ def main(argv):
         sys.exit(1)
 
     parsed_results = None
+    measure_type = None
 
     if mode.do_parse():
         logger.info("Starting parsing")
-        parsed_results = parse(in_dir)
+        measure_type, parsed_results = parse(in_dir)
         logger.info("Parsing done")
 
     if parsed_results is not None:
@@ -714,6 +749,9 @@ def main(argv):
         raw_dir = os.path.join(out_dir, RAW_DATA_DIR)
         if not os.path.exists(raw_dir):
             os.mkdir(raw_dir)
+        if measure_type is not None:
+            with open(os.path.join(raw_dir, "type"), 'w+') as type_file:
+                type_file.write(measure_type.name)
         for name in parsed_results:
             parsed_results[name].to_pickle(os.path.join(raw_dir, "%s.pkl" % name))
             with open(os.path.join(raw_dir, "%s.csv" % name), 'w+') as out_file:
