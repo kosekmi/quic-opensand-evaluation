@@ -2,12 +2,14 @@
 import getopt
 import logging
 import os
-import sys
 import re
+import sys
+
 import pandas as pd
+
+from analyze import analyze_all
 from common import Mode, Type, RAW_DATA_DIR
 from parse import parse
-from analyze import analyze_all
 
 
 def parse_args(argv):
@@ -89,7 +91,9 @@ def main(argv):
 
                 if file_name == "type":
                     with open(file, 'r') as f:
-                        measure_type = Type.from_name(f.readline(1))
+                        mtype_str = f.readline(64)
+                        measure_type = Type.from_name(mtype_str)
+                        logger.debug("Read measure type str '%s' resulting in %s", mtype_str, str(measure_type))
                     continue
 
                 match = re.match(r"^(.*)\.pkl$", file_name)

@@ -1,10 +1,12 @@
-import pandas as pd
-import numpy as np
+import logging
 import os
 import sys
-import logging
-from pygnuplot import gnuplot
 from typing import Optional, Dict, Tuple, Iterable, List, Callable, Generator
+
+import numpy as np
+import pandas as pd
+from pygnuplot import gnuplot
+
 from common import Type, GRAPH_DIR, DATA_DIR
 
 LINE_COLORS = ['black', 'red', 'dark-violet', 'blue', 'dark-green', 'dark-orange', 'gold', 'cyan']
@@ -78,6 +80,10 @@ def sat_key(sat: str):
         return -1
 
 
+def sat_tuple_key(section_tuple: Tuple[any, ...]):
+    return sat_key(section_tuple[0])
+
+
 def create_output_dirs(out_dir: str):
     graph_dir = os.path.join(out_dir, GRAPH_DIR)
     data_dir = os.path.join(out_dir, DATA_DIR)
@@ -107,11 +113,35 @@ def unique_cross_product(df: pd.DataFrame, *col_names: str) -> Generator[Tuple[a
                 vids[cid] = 0
 
 
+def filter_graph_data(df: pd.DataFrame, x_col: str, x_range: Optional[Tuple[int, int]], file_cols: List[str],
+                      file_tuple: FileTuple) -> Optional[pd.DataFrame]:
+    """
+    Filter data relevant for the graph from the dataframe.
+    :param df: The dataframe to filter
+    :param x_col: Name of the column that has the data for the x-axis, only used if x_range is given
+    :param x_range: (min, max) tuple for filtering the values for the x-axis, or None for no filter
+    :param file_cols: Column names that define values for which separate graphs are generated
+    :param file_tuple: The set of values for the file_cols that are used in this graph
+    :return:
+    """
+
+    gdf_filter = True
+
+    if x_range is not None:
+        gdf_filter = (df[x_col] >= x_range[0]) & (df[x_col] < x_range[1])
+
+    for col_name, col_val in zip(file_cols, file_tuple):
+        gdf_filter &= df[col_name] == col_val
+
+    gdf = df.loc[gdf_filter]
+    return None if gdf.empty else gdf
+
+
 def prepare_time_series_graph_data(df: pd.DataFrame, x_col: str, y_col: str, x_range: Optional[Tuple[int, int]],
                                    y_div: float, extra_title_col: str, file_cols: List[str],
-                                   file_tuple: Tuple[any, ...], data_cols: List[str], point_map: PointMap,
-                                   line_map: LineMap, point_type_indices: List[int], line_color_indices: List[int],
-                                   format_data_title: Callable[[Tuple[any, ...]], str]
+                                   file_tuple: FileTuple, data_cols: List[str], point_map: PointMap, line_map: LineMap,
+                                   point_type_indices: List[int], line_color_indices: List[int],
+                                   format_data_title: Callable[[DataTuple], str]
                                    ) -> Optional[Tuple[pd.DataFrame, List[str], List[tuple]]]:
     """
     Prepare data to be used in a time series graph.
@@ -136,13 +166,8 @@ def prepare_time_series_graph_data(df: pd.DataFrame, x_col: str, y_col: str, x_r
     """
 
     # Filter data for graph
-    gdf_filter = True
-    if x_range is not None:
-        gdf_filter = (df[x_col] >= x_range[0]) & (df[x_col] < x_range[1])
-    for col_name, col_val in zip(file_cols, file_tuple):
-        gdf_filter &= df[col_name] == col_val
-    gdf = df.loc[gdf_filter]
-    if gdf.empty:
+    gdf = filter_graph_data(df, x_col, x_range, file_cols, file_tuple)
+    if gdf is None:
         return None
 
     # Calculate mean average per y_value (e.g. per second calculate mean average from each run)
@@ -402,10 +427,165 @@ def plot_time_series_matrix(df: pd.DataFrame, out_dir: str, analysis_name: str, 
         gnuplot.multiplot(
             *subfigures,
             title='"%s"' % format_file_title(*file_tuple),
-            term='pdf size %dcm %dcm' %
+            term='pdf size %dcm, %dcm' %
                  (GRAPH_PLOT_SIZE_CM[0] * MATRIX_SIZE_SKEW * mx_cnt, GRAPH_PLOT_SIZE_CM[1] * my_cnt),
             output='"%s.pdf"' % os.path.join(out_dir, GRAPH_DIR, format_file_base(*file_tuple)),
         )
+
+
+def plot_timing(df: pd.DataFrame, out_dir: str, analysis_name: str, file_cols: List[str],
+                section_cols: List[str], tick_cols: List[str], skew_cols: List[str], y_col: str,
+                x_label: str, y_label: str,
+                format_file_title: Callable[[FileTuple], str],
+                format_file_base: Callable[[FileTuple], str],
+                format_section_title: Callable[[Tuple[any, ...]], str],
+                format_tick_title: Callable[[Tuple[any, ...]], str],
+                format_skew_title: Callable[[Tuple[any, ...]], str],
+                sort_section: Callable[[List[Tuple[any, ...]]], List[Tuple[any, ...]]] = lambda x: sorted(x),
+                sort_tick: Callable[[List[Tuple[any, ...]]], List[Tuple[any, ...]]] = lambda x: sorted(x),
+                sort_skew: Callable[[List[Tuple[any, ...]]], List[Tuple[any, ...]]] = lambda x: sorted(x),
+                percentile_low: int = 5, percentile_high: int = 95) -> None:
+    """
+    Plot a timing graph that compares the average time and min and max percentiles of a time value in multiple
+    scenarios. The timing values are separated into (1) sections with a large gap in between, (2) ticks on the x-axis
+    and (3) skew within a tick.
+
+    :param df: The dataframe to read the data from
+    :param out_dir: Directory where all the output files are placed
+    :param analysis_name: A name for the analysis used in log statements
+    :param file_cols: Column names that define values for which separate graphs are generated
+    :param section_cols: Column names that define values by which the data is separated into sections
+    :param tick_cols: Column names that define values by which the data is separated into ticks
+    :param skew_cols: Column names that define values by which the data is skewed within a tick
+    :param y_col: Column name of the column that has the data being plotted on the y-axis
+    :param x_label: Label for the x-axis
+    :param y_label: Label for the y-axis
+    :param format_file_title: Function to format the title of a graph, receives a file_tuple (file_cols values)
+    :param format_file_base Function to format the base name of a graph file, receives a file_tuple (file_cols values)
+    :param format_section_title Function to format the label of a section, receives a section_tuple (section_cols values)
+    :param format_tick_title Function to format the label of a tick, receives a tick_tuple (tick_cols values)
+    :param format_skew_title Function to format the title of a data line, receives a skew_tuple (skew_cols values)
+    :param sort_section  Sort section_tuples (section_cols values) to display them in this order
+    :param sort_tick Sort tick_tuples (tick_cols values) to display them in this order
+    :param sort_skew Sort skew_tuples (skew_cols values) to display them in this order
+    :param percentile_low Percentile to display on the lower bound [0;100]
+    :param percentile_high Percentile to display on the upper bound [0;100]
+    """
+
+    assert 0 <= percentile_low <= 100
+    assert 0 <= percentile_high <= 100
+
+    def p_low(x):
+        return np.percentile(x, q=percentile_low)
+
+    def p_high(x):
+        return np.percentile(x, q=percentile_high)
+
+    create_output_dirs(out_dir)
+
+    # Ensures same point types and line colors across all graphs
+    point_map: PointMap = {}
+    line_map: LineMap = {}
+
+    # Generate graphs
+    for file_tuple in unique_cross_product(df, *file_cols):
+        print_file_tuple = ', '.join(["%s=%s" % (col, str(val)) for col, val in zip(file_cols, file_tuple)])
+        logger.debug("Generating %s timing %s", analysis_name, print_file_tuple)
+
+        # Filter data relevant for graph
+        gdf = filter_graph_data(df, "", None, file_cols, file_tuple)
+        if gdf is None:
+            logger.debug("No data for %s timing %s", analysis_name, print_file_tuple)
+            continue
+
+        gdf = gdf[[*section_cols, *tick_cols, *skew_cols, y_col]]
+        gdf = gdf.groupby([*section_cols, *tick_cols, *skew_cols]).aggregate(
+            mean=pd.NamedAgg(y_col, np.mean),
+            p_low=pd.NamedAgg(y_col, p_low),
+            p_high=pd.NamedAgg(y_col, p_high)
+        )
+
+        # Make sure that all combinations of sections, ticks and skews exists (needed for gnuplot commands)
+        # Generate a df with all combinations and NaN values, then update with real values keeping
+        # NaN's where there are no data in gdf
+        full_idx = pd.MultiIndex.from_product(gdf.index.levels)
+        full_gdf = pd.DataFrame(index=full_idx, columns=gdf.columns)
+        full_gdf.update(gdf)
+
+        # Move index back to columns
+        full_gdf.reset_index(inplace=True)
+
+        # Generate indexes used to calculate x coordinate in plot
+        sections_sorted = sort_section(list(unique_cross_product(full_gdf, *section_cols)))
+        full_gdf['section_idx'] = full_gdf[section_cols].apply(lambda x: sections_sorted.index(tuple(x)), axis=1)
+        ticks_sorted = sort_tick(list(unique_cross_product(full_gdf, *tick_cols)))
+        full_gdf['tick_idx'] = full_gdf[tick_cols].apply(lambda x: ticks_sorted.index(tuple(x)), axis=1)
+        skews_sorted = sort_skew(list(unique_cross_product(full_gdf, *skew_cols)))
+        full_gdf['skew_idx'] = full_gdf[skew_cols].apply(lambda x: skews_sorted.index(tuple(x)), axis=1)
+
+        full_gdf = full_gdf[['section_idx', 'tick_idx', 'skew_idx', 'mean', 'p_low', 'p_high',
+                             *section_cols, *tick_cols, *skew_cols]]
+        full_gdf.sort_values(by=['section_idx', 'tick_idx', 'skew_idx'], inplace=True, ignore_index=True)
+
+        # Create graph
+        section_cnt = len(sections_sorted)
+        tick_cnt = len(ticks_sorted)
+        skew_cnt = len(skews_sorted)
+
+        x_max = (tick_cnt + 1) * section_cnt
+        y_max = max(full_gdf['mean'].max(), full_gdf['p_low'].max(), full_gdf['p_high'].max())
+        y_max_base = 10 ** np.floor(np.log10(y_max))
+        y_max = max(1, int(np.ceil(y_max / y_max_base) * y_max_base))
+
+        file_base = format_file_base(*file_tuple)
+
+        g = gnuplot.Gnuplot(log=True,
+                            title='"%s"' % (format_file_title(*file_tuple)),
+                            key='top left samplen 2',
+                            xlabel='"%s"' % x_label,
+                            ylabel='"%s"' % y_label,
+                            xrange="[0:%d]" % x_max,
+                            yrange="[0:%d]" % y_max,
+                            term="pdf size %dcm, %dcm" % VALUE_PLOT_SIZE_CM,
+                            out='"%s.pdf"' % os.path.join(out_dir, GRAPH_DIR, file_base),
+                            pointsize='0.5')
+
+        # Add labels for sections
+        for section_idx, section_tuple in enumerate(sections_sorted):
+            g.set(label='"%s" at %f,%f center' % (
+                format_section_title(*section_tuple),
+                (section_idx + 0.5) * (tick_cnt + 1),
+                y_max * 0.075
+            ))
+
+        # Add xtics for ticks
+        g.set(xtics='(%s)' % ", ".join([
+            '"%s" %d' % (format_tick_title(*tick_tuple), section_idx * (tick_cnt + 1) + tick_idx + 1)
+            for tick_idx, tick_tuple in enumerate(ticks_sorted)
+            for section_idx in range(section_cnt)
+        ]))
+
+        plot_cmds = [
+            # using: select values for error bars (x:y:y_low:y_high)
+            "every %d::%d using ($2*%d+$3+1+%f):5:6:7 with errorbars pointtype %d linecolor '%s' title '%s'" %
+            (
+                skew_cnt,  # point increment
+                skew_idx + 1,  # start point
+                tick_cnt + 1,  # sat offset
+                (skew_idx + 1) * (0.8 / (skew_cnt + 1)) - 0.4,  # skew within [-0.4; +0.4]
+                get_point_type(point_map, None),
+                get_line_color(line_map, skew_tuple),
+                format_skew_title(*skew_tuple)
+            )
+            for skew_idx, skew_tuple in enumerate(skews_sorted)
+        ]
+
+        g.plot_data(full_gdf, *plot_cmds)
+
+        # Save plot data
+        full_gdf.to_csv(os.path.join(out_dir, DATA_DIR, file_base + '.csv'))
+        with open(os.path.join(out_dir, DATA_DIR, file_base + '.gnuplot'), 'w+') as f:
+            f.write("\n".join(plot_cmds))
 
 
 def analyze_netem_goodput(df: pd.DataFrame, out_dir: str, extra_title_col: Optional[str] = None):
@@ -717,119 +897,100 @@ def analyze_opensand_rtt(df: pd.DataFrame, out_dir: str):
                      "rtt_%s_a%d" % (sat, attenuation))
 
 
-def analyze_netem_connection_times(df: pd.DataFrame, out_dir: str, time_val: str):
-    create_output_dirs(out_dir)
+def analyze_netem_ttfb(df: pd.DataFrame, out_dir: str):
+    plot_timing(df, out_dir,
+                analysis_name="TTFB",
+                file_cols=['protocol', 'pep', 'queue'],
+                section_cols=['sat'],
+                tick_cols=['rate'],
+                skew_cols=['loss'],
+                y_col='ttfb',
+                x_label="Time (ms)",
+                y_label="Satellite type, link capacity (Mbit/s)",
+                format_file_title=lambda protocol, pep, queue:
+                "Time to First Byte - %s%s - BDP*%d" % (protocol.upper(), " (PEP)" if pep else "", queue),
+                format_file_base=lambda protocol, pep, queue:
+                "ttfb_%s%s_q%d" % (protocol, "_pep" if pep else "", queue),
+                format_section_title=lambda sat: "%s" % sat.upper(),
+                format_tick_title=lambda rate: "%d" % rate,
+                format_skew_title=lambda loss: "%.2f%%" % (loss * 100),
+                sort_section=lambda section_tuples: sorted(section_tuples, key=sat_tuple_key),
+                sort_tick=lambda tick_tuples: sorted(tick_tuples),
+                sort_skew=lambda skew_tuples: sorted(skew_tuples),
+                percentile_low=5,
+                percentile_high=95)
 
-    # Ensures same point types and line colors across all graphs
-    point_map = {}
-    line_map = {}
 
-    # Generate graphs
-    for protocol in df['protocol'].unique():
-        for pep in df['pep'].unique():
-            for queue in df['queue'].unique():
-                # Filter data relevant for graph
-                gdf = pd.DataFrame(
-                    df.loc[
-                        (df['protocol'] == protocol) &
-                        (df['pep'] ^ (not pep)) &
-                        (df['queue'] == queue)
-                        ])
-                if gdf.empty:
-                    logger.debug("No data for CON_TIMES(%s) protocol=%s, pep=%s, queue=%d", time_val, protocol, pep,
-                                 queue)
-                    continue
+def analyze_opensand_ttfb(df: pd.DataFrame, out_dir: str):
+    plot_timing(df, out_dir,
+                analysis_name="CONN_EST",
+                file_cols=['protocol', 'pep'],
+                section_cols=['sat'],
+                tick_cols=['attenuation'],
+                skew_cols=['tbs', 'qbs', 'ubs'],
+                y_col='ttfb',
+                x_label="Time (ms)",
+                y_label="Satellite type, attenuation (dB)",
+                format_file_title=lambda protocol, pep:
+                "Time to First Byte - %s%s" % (protocol.upper(), " (PEP)" if pep else ""),
+                format_file_base=lambda protocol, pep:
+                "ttfb_%s%s" % (protocol, "_pep" if pep else ""),
+                format_section_title=lambda sat: "%s" % sat.upper(),
+                format_tick_title=lambda attenuation: "%d" % attenuation,
+                format_skew_title=lambda tbs, qbs, ubs: "tbs=%s, qbs=%s, ubs=%s" % (tbs, qbs, ubs),
+                sort_section=lambda section_tuples: sorted(section_tuples, key=sat_tuple_key),
+                sort_tick=lambda tick_tuples: sorted(tick_tuples),
+                sort_skew=lambda skew_tuples: sorted(skew_tuples),
+                percentile_low=5,
+                percentile_high=95)
 
-                gdf = gdf[['sat', 'rate', 'loss', time_val]]
-                gdf = gdf.groupby(['sat', 'rate', 'loss']).describe(percentiles=[0.05, 0.95])
-                # Flatten column names
-                gdf.columns = [cname for _, cname in gdf.columns]
-                # Filter relevant columns
-                gdf = gdf[['mean', '5%', '95%']]
 
-                # Make sure that all combinations of sat, rate and loss exists (needed for gnuplot commands)
-                # Generate a df with all combinations and NaN values, then update with real values keeping
-                # NaN's where there are no data in gdf
-                full_idx = pd.MultiIndex.from_product(gdf.index.levels)
-                full_gdf = pd.DataFrame(index=full_idx, columns=gdf.columns)
-                full_gdf.update(gdf)
+def analyze_netem_conn_est(df: pd.DataFrame, out_dir: str):
+    plot_timing(df, out_dir,
+                analysis_name="CONN_EST",
+                file_cols=['protocol', 'pep', 'queue'],
+                section_cols=['sat'],
+                tick_cols=['rate'],
+                skew_cols=['loss'],
+                y_col='con_est',
+                x_label="Time (ms)",
+                y_label="Satellite type, link capacity (Mbit/s)",
+                format_file_title=lambda protocol, pep, queue:
+                "Connection Establishment - %s%s - BDP*%d" % (protocol.upper(), " (PEP)" if pep else "", queue),
+                format_file_base=lambda protocol, pep, queue:
+                "con_est_%s%s_q%d" % (protocol, "_pep" if pep else "", queue),
+                format_section_title=lambda sat: "%s" % sat.upper(),
+                format_tick_title=lambda rate: "%d" % rate,
+                format_skew_title=lambda loss: "%.2f%%" % (loss * 100),
+                sort_section=lambda section_tuples: sorted(section_tuples, key=sat_tuple_key),
+                sort_tick=lambda tick_tuples: sorted(tick_tuples),
+                sort_skew=lambda skew_tuples: sorted(skew_tuples),
+                percentile_low=5,
+                percentile_high=95)
 
-                # Move index back to columns
-                full_gdf.reset_index(inplace=True)
 
-                # Generate indexes used to calculate x coordinate in plot
-                sat_idx = sorted(full_gdf['sat'].unique(), key=sat_key)
-                full_gdf['sat_idx'] = full_gdf['sat'].apply(lambda x: sat_idx.index(x))
-                rate_idx = sorted(full_gdf['rate'].unique())
-                full_gdf['rate_idx'] = full_gdf['rate'].apply(lambda x: rate_idx.index(x))
-                full_gdf = full_gdf[['sat', 'sat_idx', 'rate', 'rate_idx', 'loss', 'mean', '5%', '95%']]
-                full_gdf.sort_values(by=['sat_idx', 'rate_idx', 'loss'], inplace=True, ignore_index=True)
-
-                # Create graph
-                cnt_loss = len(full_gdf['loss'].unique())
-                cnt_rate = len(full_gdf['rate'].unique())
-                cnt_sat = len(full_gdf['sat'].unique())
-                x_max = (cnt_rate + 1) * cnt_sat
-                y_max = max(full_gdf['95%'].max(), full_gdf['mean'].max())
-                y_max_base = 10 ** np.floor(np.log10(y_max))
-                y_max = max(1, int(np.ceil(y_max / y_max_base) * y_max_base))
-
-                plot_title = "Unknown"
-                if time_val == 'ttfb':
-                    plot_title = "Time to First Byte"
-                elif time_val == 'con_est':
-                    plot_title = "Connection Establishment"
-
-                g = gnuplot.Gnuplot(log=True,
-                                    title='"%s%s - BDP*%d %s"' %
-                                          (protocol.upper(), " (PEP)" if pep else "", queue, plot_title),
-                                    key='top left samplen 2',
-                                    xlabel='"Satellite type, link capacity (Mbit/s)"',
-                                    ylabel='"Time (ms)"',
-                                    xrange="[0:%d]" % x_max,
-                                    yrange="[0:%d]" % y_max,
-                                    term="pdf size %dcm, %dcm" % VALUE_PLOT_SIZE_CM,
-                                    out='"%s"' % os.path.join(out_dir, GRAPH_DIR, "%s_%s%s_q%d.pdf" %
-                                                              (time_val, protocol, "_pep" if pep else "", queue)),
-                                    pointsize='0.5')
-                # Add labels for satellite types
-                for sat in full_gdf['sat'].unique():
-                    g.set(label='"%s" at %f,%f center' % (
-                        sat.upper(),
-                        (sat_idx.index(sat) + 0.5) * (cnt_rate + 1),
-                        y_max * 0.075
-                    ))
-                # Add xtics for rates
-                g.set(xtics='(%s)' % ", ".join([
-                    '"%d" %d' % (rate, s_idx * (cnt_rate + 1) + rate_idx.index(rate) + 1)
-                    for rate in full_gdf['rate'].unique()
-                    for s_idx in range(cnt_sat)
-                ]))
-
-                plot_cmds = [
-                    # using: select values for error bars (x:y:y_low:y_high)
-                    "every %d::%d using ($3*%d+$5+1+%f):7:8:9 with errorbars pointtype %d linecolor '%s' title '%.2f%%'" %
-                    (
-                        cnt_loss,  # point increment
-                        loss_idx + 1,  # start point
-                        cnt_rate + 1,  # sat offset
-                        (loss_idx + 1) * (0.8 / (cnt_loss + 1)) - 0.4,  # loss shift within [-0.4; +0.4]
-                        get_point_type(point_map, None),
-                        get_line_color(line_map, loss),
-                        loss * 100
-                    )
-                    for loss_idx, loss in enumerate(full_gdf['loss'].unique())
-                ]
-
-                g.plot_data(full_gdf, *plot_cmds)
-
-                # Save plot data
-                full_gdf.to_csv(os.path.join(out_dir, DATA_DIR, "%s_%s%s_q%d.csv" %
-                                             (time_val, protocol, "_pep" if pep else "", queue)))
-                with open(os.path.join(out_dir, DATA_DIR, "%s_%s%s_q%d.gnuplot" %
-                                                          (time_val, protocol, "_pep" if pep else "", queue)),
-                          'w+') as f:
-                    f.write("\n".join(plot_cmds))
+def analyze_opensand_conn_est(df: pd.DataFrame, out_dir: str):
+    plot_timing(df, out_dir,
+                analysis_name="CONN_EST",
+                file_cols=['protocol', 'pep'],
+                section_cols=['sat'],
+                tick_cols=['attenuation'],
+                skew_cols=['tbs', 'qbs', 'ubs'],
+                y_col='con_est',
+                x_label="Time (ms)",
+                y_label="Satellite type, attenuation (dB)",
+                format_file_title=lambda protocol, pep:
+                "Connection Establishment - %s%s" % (protocol.upper(), " (PEP)" if pep else ""),
+                format_file_base=lambda protocol, pep:
+                "con_est_%s%s" % (protocol, "_pep" if pep else ""),
+                format_section_title=lambda sat: "%s" % sat.upper(),
+                format_tick_title=lambda attenuation: "%d" % attenuation,
+                format_skew_title=lambda tbs, qbs, ubs: "tbs=%s, qbs=%s, ubs=%s" % (tbs, qbs, ubs),
+                sort_section=lambda section_tuples: sorted(section_tuples, key=sat_tuple_key),
+                sort_tick=lambda tick_tuples: sorted(tick_tuples),
+                sort_skew=lambda skew_tuples: sorted(skew_tuples),
+                percentile_low=5,
+                percentile_high=95)
 
 
 def analyze_stats(df_stats, df_runs, out_dir="."):
@@ -955,7 +1116,7 @@ def analyze_all(parsed_results: dict, measure_type: Type, out_dir="."):
         rtt_cols.extend(['rate', 'loss', 'queue'])
     elif measure_type == Type.OPENSAND:
         rtt_cols.extend(['attenuation', 'tbs', 'qbs', 'ubs'])
-    df_rtt = parsed_results['ping_raw'][rtt_cols]
+    df_rtt = pd.DataFrame(parsed_results['ping_raw'][rtt_cols])
     if measure_type == Type.NETEM:
         analyze_netem_rtt(df_rtt, out_dir)
     elif measure_type == Type.OPENSAND:
@@ -967,11 +1128,15 @@ def analyze_all(parsed_results: dict, measure_type: Type, out_dir="."):
         parsed_results['tcp_times'],
     ], axis=0, ignore_index=True)
     if measure_type == Type.NETEM:
-        analyze_netem_connection_times(df_con_times, out_dir, time_val='ttfb')
+        analyze_netem_ttfb(df_con_times, out_dir)
+    elif measure_type == Type.OPENSAND:
+        analyze_opensand_ttfb(df_con_times, out_dir)
 
     logger.info("Analyzing connection establishment")
     if measure_type == Type.NETEM:
-        analyze_netem_connection_times(df_con_times, out_dir, time_val='con_est')
+        analyze_netem_conn_est(df_con_times, out_dir)
+    elif measure_type == Type.OPENSAND:
+        analyze_opensand_conn_est(df_con_times, out_dir)
 
     logger.info("Analyzing stats")
     if measure_type == Type.OPENSAND:
