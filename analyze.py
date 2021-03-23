@@ -4,7 +4,7 @@ import os
 import sys
 import logging
 from pygnuplot import gnuplot
-from typing import Optional, Dict, Tuple, Iterable, NewType, List, Callable, Generator
+from typing import Optional, Dict, Tuple, Iterable, List, Callable, Generator
 from common import Type, GRAPH_DIR, DATA_DIR
 
 LINE_COLORS = ['black', 'red', 'dark-violet', 'blue', 'dark-green', 'dark-orange', 'gold', 'cyan']
@@ -186,7 +186,7 @@ def prepare_time_series_graph_data(df: pd.DataFrame, x_col: str, y_col: str, x_r
 
 
 def plot_time_series(df: pd.DataFrame, out_dir: str, analysis_name: str, file_cols: List[str], data_cols: List[str],
-                     x_col: str, y_col: str,  x_range: Optional[Tuple[int, int]], y_div: float,
+                     x_col: str, y_col: str, x_range: Optional[Tuple[int, int]], y_div: float,
                      x_label: str, y_label: str, point_type_indices: List[int], line_color_indices: List[int],
                      format_data_title: Callable[[DataTuple], str], format_file_title: Callable[[FileTuple], str],
                      format_file_base: Callable[[FileTuple], str], extra_title_col: Optional[str] = None) -> None:
@@ -360,7 +360,7 @@ def plot_time_series_matrix(df: pd.DataFrame, out_dir: str, analysis_name: str, 
                     key='off',
                     xlabel='"%s"' % x_label,
                     ylabel='"%s"' % y_label,
-                    xrange='[%d:%d]' % x_range,
+                    xrange=None if x_range is None else ('[%d:%d]' % x_range),
                     yrange='[0:%d]' % y_max,
                     pointsize='0.5',
                     size=sub_size,
@@ -519,6 +519,27 @@ def analyze_netem_cwnd_evo(df: pd.DataFrame, out_dir: str):
                      "cwnd_evo_%s_r%s_q%d" % (sat, rate, queue))
 
 
+def analyze_opensand_cwnd_evo(df: pd.DataFrame, out_dir: str):
+    plot_time_series(df, out_dir,
+                     analysis_name='CWND_EVO',
+                     file_cols=['sat', 'attenuation'],
+                     data_cols=['protocol', 'pep', 'tbs', 'qbs', 'ubs'],
+                     x_col='second',
+                     y_col='cwnd',
+                     x_range=(0, GRAPH_PLOT_SECONDS),
+                     y_div=1000,
+                     x_label="Time (s)",
+                     y_label="Congestion window (KB)",
+                     point_type_indices=[2, 3, 4],
+                     line_color_indices=[0, 1],
+                     format_data_title=lambda protocol, pep, tbs, qbs, ubs:
+                     "%s%s tbs=%s, qbs=%s, ubs=%s" % (protocol.upper(), " (PEP)" if pep else "", tbs, qbs, ubs),
+                     format_file_title=lambda sat, attenuation:
+                     "Congestion Window Evolution - %s - %d dB" % (sat, attenuation),
+                     format_file_base=lambda sat, attenuation:
+                     "cwnd_evo_%s_a%d" % (sat, attenuation))
+
+
 def analyze_netem_cwnd_evo_matrix(df: pd.DataFrame, out_dir: str):
     plot_time_series_matrix(df, out_dir,
                             analysis_name='CWND_EVO',
@@ -538,6 +559,29 @@ def analyze_netem_cwnd_evo_matrix(df: pd.DataFrame, out_dir: str):
                             "%s%s l=%.2f%%" % (protocol.upper(), " (PEP)" if pep else "", loss * 100),
                             format_file_title=lambda queue: "Congestion Window Evolution - BDP*%d" % queue,
                             format_file_base=lambda queue: "matrix_cwnd_evo_q%d" % queue,
+                            sort_matrix_x=lambda xvals: sorted(xvals, key=sat_key),
+                            sort_matrix_y=lambda yvals: sorted(yvals, reverse=True))
+
+
+def analyze_opensand_cwnd_evo_matrix(df: pd.DataFrame, out_dir: str):
+    plot_time_series_matrix(df, out_dir,
+                            analysis_name='CWND_EVO',
+                            file_cols=[],
+                            data_cols=['protocol', 'pep', 'tbs', 'qbs', 'ubs'],
+                            matrix_x_col='sat',
+                            matrix_y_col='attenuation',
+                            x_col='second',
+                            y_col='cwnd',
+                            x_range=(0, GRAPH_PLOT_SECONDS),
+                            y_div=1000,
+                            x_label="Time (s)",
+                            y_label="Congestion window (KB)",
+                            point_type_indices=[2, 3, 4],
+                            line_color_indices=[0, 1],
+                            format_data_title=lambda protocol, pep, tbs, qbs, ubs:
+                            "%s%s tbs=%s, qbs=%s, ubs=%s" % (protocol.upper(), " (PEP)" if pep else "", tbs, qbs, ubs),
+                            format_file_title=lambda: "Congestion Window Evolution",
+                            format_file_base=lambda: "matrix_cwnd_evo",
                             sort_matrix_x=lambda xvals: sorted(xvals, key=sat_key),
                             sort_matrix_y=lambda yvals: sorted(yvals, reverse=True))
 
@@ -563,6 +607,27 @@ def analyze_netem_packet_loss(df: pd.DataFrame, out_dir: str):
                      "packet_loss_%s_r%s_q%d" % (sat, rate, queue))
 
 
+def analyze_opensand_packet_loss(df: pd.DataFrame, out_dir: str):
+    plot_time_series(df, out_dir,
+                     analysis_name='PACKET_LOSS',
+                     file_cols=['sat', 'attenuation'],
+                     data_cols=['protocol', 'pep', 'tbs', 'qbs', 'ubs'],
+                     x_col='second',
+                     y_col='packets_lost',
+                     x_range=(0, GRAPH_PLOT_SECONDS),
+                     y_div=1,
+                     x_label="Time (s)",
+                     y_label="Packets lost",
+                     point_type_indices=[2, 3, 4],
+                     line_color_indices=[0, 1],
+                     format_data_title=lambda protocol, pep, tbs, qbs, ubs:
+                     "%s%s tbs=%s, qbs=%s, ubs=%s" % (protocol.upper(), " (PEP)" if pep else "", tbs, qbs, ubs),
+                     format_file_title=lambda sat, attenuation:
+                     "Packet Loss - %s - %d dB" % (sat, attenuation),
+                     format_file_base=lambda sat, attenuation:
+                     "packet_loss_%s_a%d" % (sat, attenuation))
+
+
 def analyze_netem_packet_loss_matrix(df: pd.DataFrame, out_dir: str):
     plot_time_series_matrix(df, out_dir,
                             analysis_name='PACKET_LOSS',
@@ -571,17 +636,40 @@ def analyze_netem_packet_loss_matrix(df: pd.DataFrame, out_dir: str):
                             matrix_x_col='sat',
                             matrix_y_col='rate',
                             x_col='second',
-                            y_col='cwnd',
+                            y_col='packets_lost',
                             x_range=(0, GRAPH_PLOT_SECONDS),
-                            y_div=1000,
+                            y_div=1,
                             x_label="Time (s)",
-                            y_label="Congestion window (KB)",
+                            y_label="Packets lost",
                             point_type_indices=[2],
                             line_color_indices=[0, 1],
                             format_data_title=lambda protocol, pep, loss:
                             "%s%s l=%.2f%%" % (protocol.upper(), " (PEP)" if pep else "", loss * 100),
                             format_file_title=lambda queue: "Packet Loss - BDP*%d" % queue,
                             format_file_base=lambda queue: "matrix_packet_loss_q%d" % queue,
+                            sort_matrix_x=lambda xvals: sorted(xvals, key=sat_key),
+                            sort_matrix_y=lambda yvals: sorted(yvals, reverse=True))
+
+
+def analyze_opensand_packet_loss_matrix(df: pd.DataFrame, out_dir: str):
+    plot_time_series_matrix(df, out_dir,
+                            analysis_name='PACKET_LOSS',
+                            file_cols=[],
+                            data_cols=['protocol', 'pep', 'tbs', 'qbs', 'ubs'],
+                            matrix_x_col='sat',
+                            matrix_y_col='attenuation',
+                            x_col='second',
+                            y_col='packets_lost',
+                            x_range=(0, GRAPH_PLOT_SECONDS),
+                            y_div=1000,
+                            x_label="Time (s)",
+                            y_label="Packets lost",
+                            point_type_indices=[2, 3, 4],
+                            line_color_indices=[0, 1],
+                            format_data_title=lambda protocol, pep, tbs, qbs, ubs:
+                            "%s%s tbs=%s, qbs=%s, ubs=%s" % (protocol.upper(), " (PEP)" if pep else "", tbs, qbs, ubs),
+                            format_file_title=lambda: "Packet Loss",
+                            format_file_base=lambda: "matrix_packet_loss",
                             sort_matrix_x=lambda xvals: sorted(xvals, key=sat_key),
                             sort_matrix_y=lambda yvals: sorted(yvals, reverse=True))
 
@@ -606,6 +694,27 @@ def analyze_netem_rtt(df: pd.DataFrame, out_dir: str):
                      "Round Trip Time - %s - %.0f Mbit/s - BDP*%d" % (sat, rate, queue),
                      format_file_base=lambda sat, rate, queue:
                      "rtt_%s_r%s_q%d" % (sat, rate, queue))
+
+
+def analyze_opensand_rtt(df: pd.DataFrame, out_dir: str):
+    df['second'] = (df['seq'] / 100).astype(np.int)
+    plot_time_series(df, out_dir,
+                     analysis_name='RTT',
+                     file_cols=['sat', 'attenuation'],
+                     data_cols=[],
+                     x_col='second',
+                     y_col='rtt',
+                     x_range=None,
+                     y_div=1,
+                     x_label="Time (s)",
+                     y_label="RTT (ms)",
+                     point_type_indices=[],
+                     line_color_indices=[],
+                     format_data_title=lambda: "RTT",
+                     format_file_title=lambda sat, attenuation:
+                     "Round Trip Time - %s - %d dB" % (sat, attenuation),
+                     format_file_base=lambda sat, attenuation:
+                     "rtt_%s_a%d" % (sat, attenuation))
 
 
 def analyze_netem_connection_times(df: pd.DataFrame, out_dir: str, time_val: str):
@@ -819,6 +928,9 @@ def analyze_all(parsed_results: dict, measure_type: Type, out_dir="."):
     if measure_type == Type.NETEM:
         analyze_netem_cwnd_evo(df_cwnd_evo, out_dir)
         analyze_netem_cwnd_evo_matrix(df_cwnd_evo, out_dir)
+    elif measure_type == Type.OPENSAND:
+        analyze_opensand_cwnd_evo(df_cwnd_evo, out_dir)
+        analyze_opensand_cwnd_evo_matrix(df_cwnd_evo, out_dir)
 
     logger.info("Analyzing packet loss")
     pkt_loss_cols = ['protocol', 'pep', 'sat', 'run', 'second', 'packets_lost']
@@ -833,6 +945,9 @@ def analyze_all(parsed_results: dict, measure_type: Type, out_dir="."):
     if measure_type == Type.NETEM:
         analyze_netem_packet_loss(df_pkt_loss, out_dir)
         analyze_netem_packet_loss_matrix(df_pkt_loss, out_dir)
+    elif measure_type == Type.OPENSAND:
+        analyze_opensand_packet_loss(df_pkt_loss, out_dir)
+        analyze_opensand_packet_loss_matrix(df_pkt_loss, out_dir)
 
     logger.info("Analyzing RTT")
     rtt_cols = ['sat', 'seq', 'rtt']
@@ -843,6 +958,8 @@ def analyze_all(parsed_results: dict, measure_type: Type, out_dir="."):
     df_rtt = parsed_results['ping_raw'][rtt_cols]
     if measure_type == Type.NETEM:
         analyze_netem_rtt(df_rtt, out_dir)
+    elif measure_type == Type.OPENSAND:
+        analyze_opensand_rtt(df_rtt, out_dir)
 
     logger.info("Analyzing TTFB")
     df_con_times = pd.concat([
@@ -857,13 +974,9 @@ def analyze_all(parsed_results: dict, measure_type: Type, out_dir="."):
         analyze_netem_connection_times(df_con_times, out_dir, time_val='con_est')
 
     logger.info("Analyzing stats")
-    df_stats = pd.DataFrame(parsed_results['stats'])
-    df_runs = pd.DataFrame(parsed_results['runs'])
-    df_stats.index = df_stats.index.total_seconds()
-    df_runs.index = df_runs.index.total_seconds()
-    analyze_stats(df_stats, df_runs, out_dir)
-
-
-if __name__ == '__main__':
-    df = pd.DataFrame({'a': [1, 1, 1, 2, 2, 3, 4], 'b': [5, 5, 6, 6, 7, 7, 8]})
-    print(list(unique_cross_product(df)))
+    if measure_type == Type.OPENSAND:
+        df_stats = pd.DataFrame(parsed_results['stats'])
+        df_runs = pd.DataFrame(parsed_results['runs'])
+        df_stats.index = df_stats.index.total_seconds()
+        df_runs.index = df_runs.index.total_seconds()
+        analyze_stats(df_stats, df_runs, out_dir)
