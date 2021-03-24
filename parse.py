@@ -146,6 +146,12 @@ def parse_quic_ttfb(result_set_path, pep=False):
             'ttfb': ttfb
         }, ignore_index=True)
 
+    with_na = len(df.index)
+    df.dropna(subset=['con_est', 'ttfb'], inplace=True)
+    without_na = len(df.index)
+    if with_na != without_na:
+        logger.warning("Dropped %d lines with NaN values", with_na - without_na)
+
     if df.empty:
         logger.warning("No QUIC ttfb data found")
 
@@ -280,6 +286,12 @@ def parse_tcp_ttfb(result_set_path, pep=False):
             'con_est': con_est,
             'ttfb': ttfb
         }, ignore_index=True)
+
+    with_na = len(df.index)
+    df.dropna(subset=['con_est', 'ttfb'], inplace=True)
+    without_na = len(df.index)
+    if with_na != without_na:
+        logger.warning("Dropped %d lines with NaN values", with_na - without_na)
 
     if df.empty:
         logger.warning("No TCP ttfb data found")

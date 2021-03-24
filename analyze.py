@@ -343,8 +343,8 @@ def plot_time_series_matrix(df: pd.DataFrame, out_dir: str, analysis_name: str, 
 
         mx_unique = df[matrix_x_col].unique()
         my_unique = df[matrix_y_col].unique()
-        mx_cnt = float(len(mx_unique))
-        my_cnt = float(len(my_unique))
+        mx_cnt = float(max(1, len(mx_unique)))
+        my_cnt = float(max(1, len(my_unique)))
         sub_size = "%f, %f" % ((1.0 - MATRIX_KEY_SIZE) / mx_cnt, 1.0 / my_cnt)
 
         subfigures = []
@@ -532,10 +532,14 @@ def plot_timing(df: pd.DataFrame, out_dir: str, analysis_name: str, file_cols: L
         tick_cnt = len(ticks_sorted)
         skew_cnt = len(skews_sorted)
 
+        if section_cnt * tick_cnt * skew_cnt == 0:
+            logger.debug("No data for %s timing %s", analysis_name, print_file_tuple)
+            continue
+
         x_max = (tick_cnt + 1) * section_cnt
         y_max = max(full_gdf['mean'].max(), full_gdf['p_low'].max(), full_gdf['p_high'].max())
         y_max_base = 10 ** np.floor(np.log10(y_max))
-        y_max = max(1, int(np.ceil(y_max / y_max_base) * y_max_base))
+        y_max = int(max(1, np.ceil(y_max / y_max_base) * y_max_base))
 
         file_base = format_file_base(*file_tuple)
 
