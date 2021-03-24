@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-import os.path
-import pandas as pd
-import numpy as np
-import sys
-import re
-import logging
 import json
+import logging
+import os.path
+import re
+import sys
 from datetime import datetime
+
+import numpy as np
+import pandas as pd
+
 from common import Type
 
 global logger
@@ -626,7 +628,6 @@ def parse(in_dir="~/measure"):
             df = parse_tcp_ttfb(path, pep=pep)
             if df is not None:
                 df_tcp_times = extend_df(df_tcp_times, df, protocol='tcp', pep=pep, **config)
-                df_tcp_times = df_tcp_times.append(df, ignore_index=True)
             else:
                 logger.warning("No data TCP%s ttfb data in %s" % (" (PEP)" if pep else "", folder_name))
 
