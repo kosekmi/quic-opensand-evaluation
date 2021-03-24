@@ -905,8 +905,8 @@ def analyze_netem_ttfb(df: pd.DataFrame, out_dir: str):
                 tick_cols=['rate'],
                 skew_cols=['loss'],
                 y_col='ttfb',
-                x_label="Time (ms)",
-                y_label="Satellite type, link capacity (Mbit/s)",
+                x_label="Satellite type, link capacity (Mbit/s)",
+                y_label="Time (ms)",
                 format_file_title=lambda protocol, pep, queue:
                 "Time to First Byte - %s%s - BDP*%d" % (protocol.upper(), " (PEP)" if pep else "", queue),
                 format_file_base=lambda protocol, pep, queue:
@@ -929,8 +929,8 @@ def analyze_opensand_ttfb(df: pd.DataFrame, out_dir: str):
                 tick_cols=['attenuation'],
                 skew_cols=['tbs', 'qbs', 'ubs'],
                 y_col='ttfb',
-                x_label="Time (ms)",
-                y_label="Satellite type, attenuation (dB)",
+                x_label="Satellite type, attenuation (dB)",
+                y_label="Time (ms)",
                 format_file_title=lambda protocol, pep:
                 "Time to First Byte - %s%s" % (protocol.upper(), " (PEP)" if pep else ""),
                 format_file_base=lambda protocol, pep:
@@ -953,8 +953,8 @@ def analyze_netem_conn_est(df: pd.DataFrame, out_dir: str):
                 tick_cols=['rate'],
                 skew_cols=['loss'],
                 y_col='con_est',
-                x_label="Time (ms)",
-                y_label="Satellite type, link capacity (Mbit/s)",
+                x_label="Satellite type, link capacity (Mbit/s)",
+                y_label="Time (ms)",
                 format_file_title=lambda protocol, pep, queue:
                 "Connection Establishment - %s%s - BDP*%d" % (protocol.upper(), " (PEP)" if pep else "", queue),
                 format_file_base=lambda protocol, pep, queue:
@@ -977,8 +977,8 @@ def analyze_opensand_conn_est(df: pd.DataFrame, out_dir: str):
                 tick_cols=['attenuation'],
                 skew_cols=['tbs', 'qbs', 'ubs'],
                 y_col='con_est',
-                x_label="Time (ms)",
-                y_label="Satellite type, attenuation (dB)",
+                x_label="Satellite type, attenuation (dB)",
+                y_label="Time (ms)",
                 format_file_title=lambda protocol, pep:
                 "Connection Establishment - %s%s" % (protocol.upper(), " (PEP)" if pep else ""),
                 format_file_base=lambda protocol, pep:
