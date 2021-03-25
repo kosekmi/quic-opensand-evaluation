@@ -279,7 +279,7 @@ def plot_time_series(df: pd.DataFrame, out_dir: str, analysis_name: str, file_co
                             ylabel='"%s"' % y_label,
                             pointsize='0.5',
                             xrange=None,
-                            yrange=None,
+                            yrange='[0:*]',
                             term="pdf size %dcm, %dcm" % GRAPH_PLOT_SIZE_CM,
                             out='"%s.pdf"' % os.path.join(out_dir, GRAPH_DIR, file_base))
         if x_range is not None:
