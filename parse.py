@@ -98,6 +98,12 @@ def parse_quic_client(result_set_path, pep=False):
                     'packets_received': int(line_match.group(5))
                 }, ignore_index=True)
 
+    with_na = len(df.index)
+    df.dropna(subset=['bps', 'bytes', 'packets_received'], inplace=True)
+    without_na = len(df.index)
+    if with_na != without_na:
+        logger.warning("Dropped %d lines with NaN values", with_na - without_na)
+
     if df.empty:
         logger.warning("No QUIC client data found")
 
@@ -196,6 +202,12 @@ def parse_quic_server(result_set_path, pep=False):
                     'packets_lost': int(line_match.group(4))
                 }, ignore_index=True)
 
+    with_na = len(df.index)
+    df.dropna(subset=['cwnd', 'packets_sent', 'packets_lost'], inplace=True)
+    without_na = len(df.index)
+    if with_na != without_na:
+        logger.warning("Dropped %d lines with NaN values", with_na - without_na)
+
     if df.empty:
         logger.warning("No QUIC server data found")
 
@@ -238,6 +250,12 @@ def parse_tcp_client(result_set_path, pep=False):
                 'bytes': int(interval['streams'][0]['bytes']),
                 'omitted': bool(interval['streams'][0]['omitted']),
             }, ignore_index=True)
+
+    with_na = len(df.index)
+    df.dropna(subset=['bps', 'bytes', 'omitted'], inplace=True)
+    without_na = len(df.index)
+    if with_na != without_na:
+        logger.warning("Dropped %d lines with NaN values", with_na - without_na)
 
     if df.empty:
         logger.warning("No TCP client data found")
@@ -339,6 +357,12 @@ def parse_tcp_server(result_set_path, pep=False):
                 'omitted': bool(interval['streams'][0]['omitted']),
             }, ignore_index=True)
 
+    with_na = len(df.index)
+    df.dropna(subset=['bps', 'bytes', 'packets_lost'], inplace=True)
+    without_na = len(df.index)
+    if with_na != without_na:
+        logger.warning("Dropped %d lines with NaN values", with_na - without_na)
+
     if df.empty:
         logger.warning("No TCP server data found")
 
@@ -379,6 +403,18 @@ def parse_ping(result_set_path):
 
     raw_df = pd.DataFrame(raw_data)
     summary_df = pd.DataFrame({k: [v] for k, v in summary_data.items()})
+
+    with_na = len(raw_df.index)
+    raw_df.dropna(inplace=True)
+    without_na = len(raw_df.index)
+    if with_na != without_na:
+        logger.warning("Dropped %d lines with NaN values in raw data", with_na - without_na)
+
+    with_na = len(summary_df.index)
+    summary_df.dropna(inplace=True)
+    without_na = len(summary_df.index)
+    if with_na != without_na:
+        logger.warning("Dropped %d lines with NaN values in summary data", with_na - without_na)
 
     return raw_df, summary_df
 
