@@ -341,8 +341,8 @@ def plot_time_series_matrix(df: pd.DataFrame, out_dir: str, analysis_name: str, 
         print_file_tuple = ', '.join(["%s=%s" % (col, str(val)) for col, val in zip(file_cols, file_tuple)])
         logger.debug("Generating %s matrix %s", analysis_name, print_file_tuple)
 
-        mx_unique = df[matrix_x_col].unique()
-        my_unique = df[matrix_y_col].unique()
+        mx_unique = list(sort_matrix_x(df[matrix_x_col].unique()))
+        my_unique = list(sort_matrix_y(df[matrix_y_col].unique()))
         mx_cnt = float(max(1, len(mx_unique)))
         my_cnt = float(max(1, len(my_unique)))
         sub_size = "%f, %f" % ((1.0 - MATRIX_KEY_SIZE) / mx_cnt, 1.0 / my_cnt)
@@ -351,9 +351,9 @@ def plot_time_series_matrix(df: pd.DataFrame, out_dir: str, analysis_name: str, 
         key_data = set()
 
         # Generate subfigures
-        for my_idx, my_val in enumerate(sort_matrix_y(my_unique)):
-            y_max = np.ceil(df.loc[df[matrix_y_col] == my_val][y_col].max())
-            for mx_idx, mx_val in enumerate(sort_matrix_x(mx_unique)):
+        for my_idx, my_val in enumerate(my_unique):
+            y_max = np.ceil(df.loc[df[matrix_y_col] == my_val][y_col].max() / y_div)
+            for mx_idx, mx_val in enumerate(mx_unique):
                 prepared_data = prepare_time_series_graph_data(df,
                                                                x_col=x_col,
                                                                y_col=y_col,
