@@ -245,7 +245,7 @@ def parse_tcp_client(result_set_path, pep=False):
         for interval in results['intervals']:
             df = df.append({
                 'run': run,
-                'second': interval['sum']['start'],
+                'second': interval['sum']['end'],
                 'bps': float(interval['streams'][0]['bits_per_second']),
                 'bytes': int(interval['streams'][0]['bytes']),
                 'omitted': bool(interval['streams'][0]['omitted']),
@@ -348,7 +348,7 @@ def parse_tcp_server(result_set_path, pep=False):
         for interval in results['intervals']:
             df = df.append({
                 'run': run,
-                'second': interval['sum']['start'],
+                'second': interval['sum']['end'],
                 'cwnd': int(interval['streams'][0]['snd_cwnd']),
                 'bps': float(interval['streams'][0]['bits_per_second']),
                 'bytes': int(interval['streams'][0]['bytes']),
