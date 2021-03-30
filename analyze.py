@@ -405,7 +405,7 @@ def plot_time_series_matrix(df: pd.DataFrame, out_dir: str, analysis_name: str, 
                 ))
 
         # Check if a matrix plot is useful
-        if len(subfigures) <= 1 and False:
+        if len(subfigures) <= 1:
             logger.debug("Skipping %s matrix plot for %s, not enough individual plots", analysis_name, print_file_tuple)
             continue
 
