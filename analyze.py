@@ -296,6 +296,8 @@ def plot_time_series(df: pd.DataFrame, out_dir: str, analysis_name: str, file_co
 
         # Save plot data
         plot_df.to_csv(os.path.join(out_dir, DATA_DIR, file_base + '.csv'))
+        with open(os.path.join(out_dir, DATA_DIR, file_base + '.gnuplot'), 'w+') as f:
+            f.write("\n".join(plot_cmds))
 
 
 def plot_time_series_matrix(df: pd.DataFrame, out_dir: str, analysis_name: str, file_cols: List[str],
