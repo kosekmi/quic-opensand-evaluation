@@ -14,7 +14,7 @@ POINT_TYPES = [2, 4, 8, 10, 6, 12, 9, 11]
 
 GRAPH_PLOT_SIZE_CM = (44, 8)
 GRAPH_PLOT_SECONDS = 30
-GRAPH_X_PRECISION = 1
+GRAPH_X_BUCKET = 0.1
 VALUE_PLOT_SIZE_CM = (12, 8)
 MATRIX_KEY_SIZE = 0.12
 MATRIX_SIZE_SKEW = 0.7
@@ -139,7 +139,7 @@ def filter_graph_data(df: pd.DataFrame, x_col: str, x_range: Optional[Tuple[int,
 
 
 def prepare_time_series_graph_data(df: pd.DataFrame, x_col: str, y_col: str, x_range: Optional[Tuple[int, int]],
-                                   x_precision: Optional[int], y_div: float, extra_title_col: str, file_cols: List[str],
+                                   x_bucket: Optional[float], y_div: float, extra_title_col: str, file_cols: List[str],
                                    file_tuple: FileTuple, data_cols: List[str], point_map: PointMap, line_map: LineMap,
                                    point_type_indices: List[int], line_color_indices: List[int],
                                    format_data_title: Callable[[DataTuple], str]
@@ -151,7 +151,7 @@ def prepare_time_series_graph_data(df: pd.DataFrame, x_col: str, y_col: str, x_r
     :param x_col: Name of the column that has the data for the x-axis
     :param y_col: Name of the column that has the data for the y-axis
     :param x_range: (min, max) tuple for filtering the values for the x-axis
-    :param x_precision Number of decimal places to round values of the x-axis to
+    :param x_bucket: Size of the bucket to use for aggregating data on the x-axis
     :param y_div: Number to divide the values on the y-axis by before plotting
     :param extra_title_col: Name of the column that holds a string prefix for the data title
     :param file_cols: Column names that define values for which separate graphs are generated
@@ -168,12 +168,18 @@ def prepare_time_series_graph_data(df: pd.DataFrame, x_col: str, y_col: str, x_r
     """
 
     # Filter data for graph
-    gdf = filter_graph_data(df, x_col, x_range, file_cols, file_tuple)
+    gdf = pd.DataFrame(filter_graph_data(df, x_col, x_range, file_cols, file_tuple))
     if gdf is None:
         return None
 
-    if x_precision is not None:
-        gdf = gdf.round({x_col: x_precision})
+    if x_bucket is not None:
+        if x_range is not None:
+            start, end = x_range
+        else:
+            start = gdf[x_col].min()
+            end = gdf[x_col].max()
+        buckets = np.arange(start=start, stop=end + x_bucket, step=x_bucket)
+        gdf[x_col] = pd.cut(gdf[x_col], buckets, labels=buckets[1:])
 
     # Calculate mean average per y_value (e.g. per second calculate mean average from each run)
     gdf = gdf[[extra_title_col, *data_cols, x_col, y_col]]
@@ -216,7 +222,7 @@ def prepare_time_series_graph_data(df: pd.DataFrame, x_col: str, y_col: str, x_r
 
 
 def plot_time_series(df: pd.DataFrame, out_dir: str, analysis_name: str, file_cols: List[str], data_cols: List[str],
-                     x_col: str, y_col: str, x_range: Optional[Tuple[int, int]], x_precision: Optional[int],
+                     x_col: str, y_col: str, x_range: Optional[Tuple[int, int]], x_bucket: Optional[float],
                      y_div: float, x_label: str, y_label: str, point_type_indices: List[int],
                      line_color_indices: List[int], format_data_title: Callable[[DataTuple], str],
                      format_file_title: Callable[[FileTuple], str], format_file_base: Callable[[FileTuple], str],
@@ -232,7 +238,7 @@ def plot_time_series(df: pd.DataFrame, out_dir: str, analysis_name: str, file_co
     :param x_col: Name of the column that has the data for the x-axis
     :param y_col: Name of the column that has the data for the y-axis
     :param x_range: (min, max) tuple for filtering the values for the x-axis
-    :param x_precision Number of decimal places to round values of the x-axis to
+    :param x_bucket: Size of the bucket to use for aggregating data on the x-axis
     :param y_div: Number to divide the values on the y-axis by before plotting
     :param x_label: Label for the x-axis of the generated graphs
     :param y_label: LAbel for the y-axis of the generated graphs
@@ -262,7 +268,7 @@ def plot_time_series(df: pd.DataFrame, out_dir: str, analysis_name: str, file_co
                                                        x_col=x_col,
                                                        y_col=y_col,
                                                        x_range=x_range,
-                                                       x_precision=x_precision,
+                                                       x_bucket=x_bucket,
                                                        y_div=y_div,
                                                        extra_title_col=extra_title_col,
                                                        file_cols=file_cols,
@@ -302,7 +308,7 @@ def plot_time_series(df: pd.DataFrame, out_dir: str, analysis_name: str, file_co
 
 def plot_time_series_matrix(df: pd.DataFrame, out_dir: str, analysis_name: str, file_cols: List[str],
                             data_cols: List[str], matrix_x_col: str, matrix_y_col: str, x_col: str, y_col: str,
-                            x_range: Optional[Tuple[int, int]], x_precision: Optional[int], y_div: float, x_label: str,
+                            x_range: Optional[Tuple[int, int]], x_bucket: Optional[float], y_div: float, x_label: str,
                             y_label: str, point_type_indices: List[int], line_color_indices: List[int],
                             format_data_title: Callable[[DataTuple], str],
                             format_file_title: Callable[[FileTuple], str],
@@ -324,7 +330,7 @@ def plot_time_series_matrix(df: pd.DataFrame, out_dir: str, analysis_name: str, 
     :param x_col: Name of the column that has the data for the x-axis
     :param y_col: Name of the column that has the data for the y-axis
     :param x_range: (min, max) tuple for filtering the values for the x-axis
-    :param x_precision Number of decimal places to round values of the x-axis to
+    :param x_bucket: Size of the bucket to use for aggregating data on the x-axis
     :param y_div: Number to divide the values on the y-axis by before plotting
     :param x_label: Label for the x-axis of the generated graphs
     :param y_label: LAbel for the y-axis of the generated graphs
@@ -369,7 +375,7 @@ def plot_time_series_matrix(df: pd.DataFrame, out_dir: str, analysis_name: str, 
                                                                x_col=x_col,
                                                                y_col=y_col,
                                                                x_range=x_range,
-                                                               x_precision=x_precision,
+                                                               x_bucket=x_bucket,
                                                                y_div=y_div,
                                                                extra_title_col=extra_title_col,
                                                                file_cols=[*file_cols, matrix_x_col, matrix_y_col],
@@ -612,7 +618,7 @@ def analyze_netem_goodput(df: pd.DataFrame, out_dir: str, extra_title_col: Optio
                      x_col='second',
                      y_col='bps',
                      x_range=(0, GRAPH_PLOT_SECONDS),
-                     x_precision=GRAPH_X_PRECISION,
+                     x_bucket=GRAPH_X_BUCKET,
                      y_div=1000,
                      x_label="Time (s)",
                      y_label="Goodput (kbps)",
@@ -635,7 +641,7 @@ def analyze_opensand_goodput(df: pd.DataFrame, out_dir: str, extra_title_col: Op
                      x_col='second',
                      y_col='bps',
                      x_range=(0, GRAPH_PLOT_SECONDS),
-                     x_precision=GRAPH_X_PRECISION,
+                     x_bucket=GRAPH_X_BUCKET,
                      y_div=1000,
                      x_label="Time (s)",
                      y_label="Goodput (kbps)",
@@ -660,7 +666,7 @@ def analyze_netem_goodput_matrix(df: pd.DataFrame, out_dir: str):
                             x_col='second',
                             y_col='bps',
                             x_range=(0, GRAPH_PLOT_SECONDS),
-                            x_precision=GRAPH_X_PRECISION,
+                            x_bucket=GRAPH_X_BUCKET,
                             y_div=1000,
                             x_label="Time (s)",
                             y_label="Goodput (kbps)",
@@ -684,7 +690,7 @@ def analyze_opensand_goodput_matrix(df: pd.DataFrame, out_dir: str):
                             x_col='second',
                             y_col='bps',
                             x_range=(0, GRAPH_PLOT_SECONDS),
-                            x_precision=GRAPH_X_PRECISION,
+                            x_bucket=GRAPH_X_BUCKET,
                             y_div=1000,
                             x_label="Time (s)",
                             y_label="Goodput (kbps)",
@@ -706,7 +712,7 @@ def analyze_netem_cwnd_evo(df: pd.DataFrame, out_dir: str):
                      x_col='second',
                      y_col='cwnd',
                      x_range=(0, GRAPH_PLOT_SECONDS),
-                     x_precision=GRAPH_X_PRECISION,
+                     x_bucket=GRAPH_X_BUCKET,
                      y_div=1000,
                      x_label="Time (s)",
                      y_label="Congestion window (KB)",
@@ -728,7 +734,7 @@ def analyze_opensand_cwnd_evo(df: pd.DataFrame, out_dir: str):
                      x_col='second',
                      y_col='cwnd',
                      x_range=(0, GRAPH_PLOT_SECONDS),
-                     x_precision=GRAPH_X_PRECISION,
+                     x_bucket=GRAPH_X_BUCKET,
                      y_div=1000,
                      x_label="Time (s)",
                      y_label="Congestion window (KB)",
@@ -752,7 +758,7 @@ def analyze_netem_cwnd_evo_matrix(df: pd.DataFrame, out_dir: str):
                             x_col='second',
                             y_col='cwnd',
                             x_range=(0, GRAPH_PLOT_SECONDS),
-                            x_precision=GRAPH_X_PRECISION,
+                            x_bucket=GRAPH_X_BUCKET,
                             y_div=1000,
                             x_label="Time (s)",
                             y_label="Congestion window (KB)",
@@ -776,7 +782,7 @@ def analyze_opensand_cwnd_evo_matrix(df: pd.DataFrame, out_dir: str):
                             x_col='second',
                             y_col='cwnd',
                             x_range=(0, GRAPH_PLOT_SECONDS),
-                            x_precision=GRAPH_X_PRECISION,
+                            x_bucket=GRAPH_X_BUCKET,
                             y_div=1000,
                             x_label="Time (s)",
                             y_label="Congestion window (KB)",
@@ -798,7 +804,7 @@ def analyze_netem_packet_loss(df: pd.DataFrame, out_dir: str):
                      x_col='second',
                      y_col='packets_lost',
                      x_range=(0, GRAPH_PLOT_SECONDS),
-                     x_precision=GRAPH_X_PRECISION,
+                     x_bucket=GRAPH_X_BUCKET,
                      y_div=1,
                      x_label="Time (s)",
                      y_label="Packets lost",
@@ -820,7 +826,7 @@ def analyze_opensand_packet_loss(df: pd.DataFrame, out_dir: str):
                      x_col='second',
                      y_col='packets_lost',
                      x_range=(0, GRAPH_PLOT_SECONDS),
-                     x_precision=GRAPH_X_PRECISION,
+                     x_bucket=GRAPH_X_BUCKET,
                      y_div=1,
                      x_label="Time (s)",
                      y_label="Packets lost",
@@ -844,7 +850,7 @@ def analyze_netem_packet_loss_matrix(df: pd.DataFrame, out_dir: str):
                             x_col='second',
                             y_col='packets_lost',
                             x_range=(0, GRAPH_PLOT_SECONDS),
-                            x_precision=GRAPH_X_PRECISION,
+                            x_bucket=GRAPH_X_BUCKET,
                             y_div=1,
                             x_label="Time (s)",
                             y_label="Packets lost",
@@ -868,7 +874,7 @@ def analyze_opensand_packet_loss_matrix(df: pd.DataFrame, out_dir: str):
                             x_col='second',
                             y_col='packets_lost',
                             x_range=(0, GRAPH_PLOT_SECONDS),
-                            x_precision=GRAPH_X_PRECISION,
+                            x_bucket=GRAPH_X_BUCKET,
                             y_div=1000,
                             x_label="Time (s)",
                             y_label="Packets lost",
@@ -891,7 +897,7 @@ def analyze_netem_rtt(df: pd.DataFrame, out_dir: str):
                      x_col='second',
                      y_col='rtt',
                      x_range=None,
-                     x_precision=GRAPH_X_PRECISION,
+                     x_bucket=GRAPH_X_BUCKET,
                      y_div=1,
                      x_label="Time (s)",
                      y_label="RTT (ms)",
@@ -914,7 +920,7 @@ def analyze_opensand_rtt(df: pd.DataFrame, out_dir: str):
                      x_col='second',
                      y_col='rtt',
                      x_range=None,
-                     x_precision=GRAPH_X_PRECISION,
+                     x_bucket=GRAPH_X_BUCKET,
                      y_div=1,
                      x_label="Time (s)",
                      y_label="RTT (ms)",
