@@ -84,7 +84,7 @@ def parse_quic_client(result_set_path, pep=False):
         with open(path) as file:
             for line in file:
                 line_match = re.search(
-                    r"^second (\d+): (\d+(?:\.\d+)?) ([a-zA-Z]?)bit/s, bytes received: (\d+), packets received: (\d+)$",
+                    r"^second (\d+(?:\.\d+)?): (\d+(?:\.\d+)?) ([a-zA-Z]?)bit/s, bytes received: (\d+), packets received: (\d+)$",
                     line.strip()
                 )
                 if not line_match:
@@ -92,7 +92,7 @@ def parse_quic_client(result_set_path, pep=False):
 
                 df = df.append({
                     'run': run,
-                    'second': int(line_match.group(1)),
+                    'second': float(line_match.group(1)),
                     'bps': float(line_match.group(2)) * bps_factor(line_match.group(3)),
                     'bytes': int(line_match.group(4)),
                     'packets_received': int(line_match.group(5))
@@ -140,12 +140,12 @@ def parse_quic_ttfb(result_set_path, pep=False):
                     if con_est is not None:
                         logger.warning("Found duplicate value for con_est in '%s', ignoring", path)
                     else:
-                        con_est = int(line.split(':', 1)[1].strip()[:-2])
+                        con_est = float(line.split(':', 1)[1].strip()[:-2])
                 elif line.startswith('time to first byte:'):
                     if ttfb is not None:
                         logger.warning("Found duplicate value for ttfb in '%s', ignoring", path)
                     else:
-                        ttfb = int(line.split(':', 1)[1].strip()[:-2])
+                        ttfb = float(line.split(':', 1)[1].strip()[:-2])
         df = df.append({
             'run': run,
             'con_est': con_est,
@@ -189,14 +189,14 @@ def parse_quic_server(result_set_path, pep=False):
         with open(path) as file:
             for line in file:
                 line_match = re.search(
-                    r"^connection \d+ second (\d+):.*send window: (\d+).*packets sent: (\d+).*packets lost: (\d+)$",
+                    r"^connection \d+ second (\d+(?:\.\d+)?):.*send window: (\d+).*packets sent: (\d+).*packets lost: (\d+)$",
                     line.strip())
                 if not line_match:
                     continue
 
                 df = df.append({
                     'run': run,
-                    'second': int(line_match.group(1)),
+                    'second': float(line_match.group(1)),
                     'cwnd': int(line_match.group(2)),
                     'packets_sent': int(line_match.group(3)),
                     'packets_lost': int(line_match.group(4))
@@ -245,7 +245,7 @@ def parse_tcp_client(result_set_path, pep=False):
         for interval in results['intervals']:
             df = df.append({
                 'run': run,
-                'second': round(interval['sum']['start']),
+                'second': interval['sum']['start'],
                 'bps': float(interval['streams'][0]['bits_per_second']),
                 'bytes': int(interval['streams'][0]['bytes']),
                 'omitted': bool(interval['streams'][0]['omitted']),
@@ -348,7 +348,7 @@ def parse_tcp_server(result_set_path, pep=False):
         for interval in results['intervals']:
             df = df.append({
                 'run': run,
-                'second': round(interval['sum']['start']),
+                'second': interval['sum']['start'],
                 'cwnd': int(interval['streams'][0]['snd_cwnd']),
                 'bps': float(interval['streams'][0]['bits_per_second']),
                 'bytes': int(interval['streams'][0]['bytes']),
@@ -548,7 +548,7 @@ def fix_dtypes(df):
         'loss': float,
         'queue': np.int32,
         'run': np.int32,
-        'second': np.int32,
+        'second': np.float32,
         'bps': np.float64,
         'bytes': np.int32,
         'packets_received': np.int32,
