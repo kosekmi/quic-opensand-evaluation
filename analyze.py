@@ -405,7 +405,7 @@ def plot_time_series_matrix(df: pd.DataFrame, out_dir: str, analysis_name: str, 
                 ))
 
         # Check if a matrix plot is useful
-        if len(subfigures) <= 1:
+        if len(subfigures) <= 1 and False:
             logger.debug("Skipping %s matrix plot for %s, not enough individual plots", analysis_name, print_file_tuple)
             continue
 
@@ -422,7 +422,7 @@ def plot_time_series_matrix(df: pd.DataFrame, out_dir: str, analysis_name: str, 
         ]
         subfigures.append(gnuplot.make_plot(
             *key_cmds,
-            key='inside center vertical samplen 2',
+            key='on inside center center vertical Right samplen 2',
             pointsize='0.5',
             size="%f, 1" % MATRIX_KEY_SIZE,
             origin="%f, 0" % (1.0 - MATRIX_KEY_SIZE),
@@ -431,8 +431,8 @@ def plot_time_series_matrix(df: pd.DataFrame, out_dir: str, analysis_name: str, 
             ytics=None,
             xlabel=None,
             ylabel=None,
-            xrange=None,
-            yrange=None,
+            xrange='[0:1]',
+            yrange='[0:1]',
             border=None,
         ))
 
@@ -691,7 +691,7 @@ def analyze_opensand_goodput_matrix(df: pd.DataFrame, out_dir: str):
                             point_type_indices=[2, 3, 4],
                             line_color_indices=[0, 1],
                             format_data_title=lambda protocol, pep, tbs, qbs, ubs:
-                            "%s%s tbs=%s, qbs=%s, ubs=%s" % (protocol.upper(), " (PEP)" if pep else "", tbs, qbs, ubs),
+                            "%s%s" % (protocol.upper(), " (PEP)" if pep else ""),
                             format_file_title=lambda: "Goodput Evolution",
                             format_file_base=lambda: "matrix_goodput",
                             sort_matrix_x=lambda xvals: sorted(xvals, key=sat_key),
@@ -783,7 +783,7 @@ def analyze_opensand_cwnd_evo_matrix(df: pd.DataFrame, out_dir: str):
                             point_type_indices=[2, 3, 4],
                             line_color_indices=[0, 1],
                             format_data_title=lambda protocol, pep, tbs, qbs, ubs:
-                            "%s%s tbs=%s, qbs=%s, ubs=%s" % (protocol.upper(), " (PEP)" if pep else "", tbs, qbs, ubs),
+                            "%s%s" % (protocol.upper(), " (PEP)" if pep else ""),
                             format_file_title=lambda: "Congestion Window Evolution",
                             format_file_base=lambda: "matrix_cwnd_evo",
                             sort_matrix_x=lambda xvals: sorted(xvals, key=sat_key),
@@ -875,7 +875,7 @@ def analyze_opensand_packet_loss_matrix(df: pd.DataFrame, out_dir: str):
                             point_type_indices=[2, 3, 4],
                             line_color_indices=[0, 1],
                             format_data_title=lambda protocol, pep, tbs, qbs, ubs:
-                            "%s%s tbs=%s, qbs=%s, ubs=%s" % (protocol.upper(), " (PEP)" if pep else "", tbs, qbs, ubs),
+                            "%s%s" % (protocol.upper(), " (PEP)" if pep else ""),
                             format_file_title=lambda: "Packet Loss",
                             format_file_base=lambda: "matrix_packet_loss",
                             sort_matrix_x=lambda xvals: sorted(xvals, key=sat_key),
