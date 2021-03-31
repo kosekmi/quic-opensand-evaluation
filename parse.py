@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 import json
 import logging
+import multiprocessing as mp
 import os.path
 import re
 import sys
 from datetime import datetime
-from typing import Dict, List, Optional, Generator, Tuple
+from multiprocessing.dummy.connection import Connection
+from typing import Dict, List, Optional, Generator, Tuple, Callable
 
 import numpy as np
 import pandas as pd
@@ -21,7 +23,7 @@ except NameError:
     logger.setLevel(logging.DEBUG)
     handler = logging.StreamHandler(sys.stdout)
     handler.setLevel(logging.DEBUG)
-    handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s'))
+    handler.setFormatter(logging.Formatter('%(asctime)s %(processName)s [%(levelname)s] %(message)s'))
     logger.addHandler(handler)
 
 
@@ -326,7 +328,7 @@ def parse_quic_timing(in_dir: str, out_dir: str, scenarios: Dict[str, Dict], con
     :return: A dataframe containing the combined results from all scenarios.
     """
 
-    logger.info("Parsing quic%s timing results")
+    logger.info("Parsing quic timing results")
     df_quic_timing = pd.DataFrame(columns=[*config_cols, 'run', 'con_est', 'ttfb'])
 
     for folder, config in scenarios.items():
@@ -904,7 +906,7 @@ def detect_measure_type(in_dir: str, out_dir: str) -> common.MeasureType:
     return measure_type
 
 
-def result_folders(root_folder: str) -> Generator[str, None, None]:
+def list_result_folders(root_folder: str) -> Generator[str, None, None]:
     for folder_name in os.listdir(root_folder):
         path = os.path.join(root_folder, folder_name)
         if not os.path.isdir(path):
@@ -913,13 +915,98 @@ def result_folders(root_folder: str) -> Generator[str, None, None]:
         yield folder_name
 
 
-def parse_results(in_dir: str, out_dir: str) -> Tuple[common.MeasureType, Dict, Dict[str, pd.DataFrame]]:
+def __mp_parse_wrapper(parse_func: Callable[[str, str, Dict[str, Dict], List[str]], pd.DataFrame], conn: Connection,
+                       in_dir: str, out_dir: str, scenarios: Dict[str, Dict], config_columns: List[str]) -> None:
+    result = parse_func(in_dir, out_dir, scenarios, config_columns)
+    conn.send(result)
+    conn.close()
+
+
+def __parse_results_mp(in_dir: str, out_dir: str, scenarios: Dict[str, Dict], config_columns: List[str],
+                       measure_type: common.MeasureType) -> Dict[str, pd.DataFrame]:
+    tasks = [
+        ('quic_client', parse_quic_client, mp.Pipe()),
+        ('quic_server', parse_quic_server, mp.Pipe()),
+        ('quic_timing', parse_quic_timing, mp.Pipe()),
+        ('tcp_client', parse_tcp_client, mp.Pipe()),
+        ('tcp_server', parse_tcp_server, mp.Pipe()),
+        ('tcp_timing', parse_tcp_timing, mp.Pipe()),
+        ('ping', parse_ping, mp.Pipe()),
+    ]
+
+    processes = [
+        mp.Process(target=__mp_parse_wrapper, name=name,
+                   args=(func, client_con, in_dir, out_dir, scenarios, config_columns))
+        for name, func, (_, client_con) in tasks
+    ]
+
+    logger.info("Starting parsing processes")
+
+    for p in processes:
+        p.start()
+
+    # work on main thread
+    df_config = __create_config_df(out_dir, scenarios)
+    df_runs, df_stats = parse_log(in_dir, out_dir, measure_type)
+
+    # collect data
+    parsed_results = {
+        name: parent_con.recv()
+        for name, _, (parent_con, _) in tasks
+    }
+
+    # wait for child processes to finish
+    for p in processes:
+        logger.debug("Waiting for process %s", p.name)
+        p.join()
+    logger.info("Parsing processes done")
+
+    parsed_results['ping_raw'], parsed_results['ping_summary'] = parsed_results['ping']
+    del parsed_results['ping']
+
+    parsed_results['config'] = df_config
+    parsed_results['stats'] = df_stats
+    parsed_results['runs'] = df_runs
+
+    return parsed_results
+
+
+def __parse_results_sp(in_dir: str, out_dir: str, scenarios: Dict[str, Dict], config_columns: List[str],
+                       measure_type: common.MeasureType) -> Dict[str, pd.DataFrame]:
+    df_quic_client = parse_quic_client(in_dir, out_dir, scenarios, config_columns)
+    df_quic_server = parse_quic_server(in_dir, out_dir, scenarios, config_columns)
+    df_quic_timing = parse_quic_timing(in_dir, out_dir, scenarios, config_columns)
+    df_tcp_client = parse_tcp_client(in_dir, out_dir, scenarios, config_columns)
+    df_tcp_server = parse_tcp_server(in_dir, out_dir, scenarios, config_columns)
+    df_tcp_timing = parse_tcp_timing(in_dir, out_dir, scenarios, config_columns)
+    df_ping_raw, df_ping_summary = parse_ping(in_dir, out_dir, scenarios, config_columns)
+
+    df_config = __create_config_df(out_dir, scenarios)
+    df_runs, df_stats = parse_log(in_dir, out_dir, measure_type)
+
+    return {
+        'config': df_config,
+        'quic_client': df_quic_client,
+        'quic_server': df_quic_server,
+        'quic_timing': df_quic_timing,
+        'tcp_client': df_tcp_client,
+        'tcp_server': df_tcp_server,
+        'tcp_timing': df_tcp_timing,
+        'ping_raw': df_ping_raw,
+        'ping_summary': df_ping_summary,
+        'stats': df_stats,
+        'runs': df_runs,
+    }
+
+
+def parse_results(in_dir: str, out_dir: str, mp: bool = False) -> Tuple[
+    common.MeasureType, Dict, Dict[str, pd.DataFrame]]:
     logger.info("Parsing measurement results in '%s'", in_dir)
 
     # read scenarios
     logger.info("Reading scenarios")
     scenarios = {}
-    for folder_name in result_folders(in_dir):
+    for folder_name in list_result_folders(in_dir):
         logger.debug("Parsing config in %s", folder_name)
         scenarios[folder_name] = __read_config_from_scenario(in_dir, folder_name)
 
@@ -944,30 +1031,10 @@ def parse_results(in_dir: str, out_dir: str) -> Tuple[common.MeasureType, Dict, 
         config_columns.extend(['attenuation', 'tbs', 'qbs', 'ubs'])
 
     # parse data
-    df_quic_client = parse_quic_client(in_dir, raw_out_dir, scenarios, config_columns)
-    df_quic_server = parse_quic_server(in_dir, raw_out_dir, scenarios, config_columns)
-    df_quic_timing = parse_quic_timing(in_dir, raw_out_dir, scenarios, config_columns)
-    df_tcp_client = parse_tcp_client(in_dir, raw_out_dir, scenarios, config_columns)
-    df_tcp_server = parse_tcp_server(in_dir, raw_out_dir, scenarios, config_columns)
-    df_tcp_timing = parse_tcp_timing(in_dir, raw_out_dir, scenarios, config_columns)
-    df_ping_raw, df_ping_summary = parse_ping(in_dir, raw_out_dir, scenarios, config_columns)
+    parse_func = __parse_results_mp if mp else __parse_results_sp
+    parsed_results = parse_func(in_dir, raw_out_dir, scenarios, config_columns, measure_type)
 
-    df_config = __create_config_df(raw_out_dir, scenarios)
-    df_runs, df_stats = parse_log(in_dir, raw_out_dir, measure_type)
-
-    return measure_type, auto_detect, {
-        'config': df_config,
-        'quic_client': df_quic_client,
-        'quic_server': df_quic_server,
-        'quic_timing': df_quic_timing,
-        'tcp_client': df_tcp_client,
-        'tcp_server': df_tcp_server,
-        'tcp_timing': df_tcp_timing,
-        'ping_raw': df_ping_raw,
-        'ping_summary': df_ping_summary,
-        'stats': df_stats,
-        'runs': df_runs,
-    }
+    return measure_type, auto_detect, parsed_results
 
 
 def load_parsed_results(in_dir: str) -> Tuple[common.MeasureType, Dict, Dict[str, pd.DataFrame]]:

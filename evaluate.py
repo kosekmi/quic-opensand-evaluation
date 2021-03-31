@@ -18,6 +18,7 @@ def usage(name):
         "-h, --help          Print this help message\n"
         "-i, --input=<dir>   Input directory to read the measurement results from\n"
         "-o, --output=<dir>  Output directory to put the parsed results and graphs to\n"
+        "-m, --multi-process Use multiple processes while parsing results\n"
         "-p, --parse         Parse only and skip analysis"
         "" % name
     )
@@ -27,10 +28,12 @@ def parse_args(name, argv):
     in_dir = None
     out_dir = None
     auto_detect = False
+    multi_process = False
     mode = Mode.ALL
 
     try:
-        opts, args = getopt.getopt(argv, "adhi:o:p", ["analyze", "auto-detect", "help", "input=", "output=", "parse"])
+        opts, args = getopt.getopt(argv, "adhi:mo:p", ["analyze", "auto-detect", "help", "input=", "multi-process",
+                                                       "output=", "parse"])
     except getopt.GetoptError:
         print("parse.py -i <input_dir> -o <output_dir>")
         sys.exit(2)
@@ -45,6 +48,8 @@ def parse_args(name, argv):
             sys.exit(0)
         elif opt in ("-i", "--input"):
             in_dir = arg
+        elif opt in ("-m", "--multi-process"):
+            multi_process = True
         elif opt in ("-o", "--output"):
             out_dir = arg
         elif opt in ("-p", "parse"):
@@ -62,7 +67,7 @@ def parse_args(name, argv):
             print("%s -h for help", name)
             sys.exit(1)
 
-    return in_dir, out_dir, auto_detect, mode
+    return mode, in_dir, out_dir, auto_detect, multi_process
 
 
 def main(name, argv):
@@ -79,7 +84,7 @@ def main(name, argv):
         handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s'))
         logger.addHandler(handler)
 
-    in_dir, out_dir, do_auto_detect, mode = parse_args(name, argv)
+    mode, in_dir, out_dir, do_auto_detect, multi_process = parse_args(name, argv)
 
     if not os.path.exists(out_dir):
         os.mkdir(out_dir)
@@ -93,7 +98,7 @@ def main(name, argv):
 
     if mode.do_parse():
         logger.info("Starting parsing")
-        measure_type, auto_detect, parsed_results = parse.parse_results(in_dir, out_dir)
+        measure_type, auto_detect, parsed_results = parse.parse_results(in_dir, out_dir, mp=multi_process)
         logger.info("Parsing done")
 
     if mode.do_analyze():
