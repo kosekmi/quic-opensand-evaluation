@@ -999,8 +999,8 @@ def __parse_results_sp(in_dir: str, out_dir: str, scenarios: Dict[str, Dict], co
     }
 
 
-def parse_results(in_dir: str, out_dir: str, mp: bool = False) -> Tuple[
-    common.MeasureType, Dict, Dict[str, pd.DataFrame]]:
+def parse_results(in_dir: str, out_dir: str, multi_process: bool = False
+                  ) -> Tuple[common.MeasureType, Dict, Dict[str, pd.DataFrame]]:
     logger.info("Parsing measurement results in '%s'", in_dir)
 
     # read scenarios
@@ -1028,10 +1028,10 @@ def parse_results(in_dir: str, out_dir: str, mp: bool = False) -> Tuple[
     if measure_type == common.MeasureType.NETEM:
         config_columns.extend(['rate', 'loss', 'queue'])
     elif measure_type == common.MeasureType.OPENSAND:
-        config_columns.extend(['attenuation', 'tbs', 'qbs', 'ubs'])
+        config_columns.extend(['attenuation', 'ccs', 'tbs', 'qbs', 'ubs'])
 
     # parse data
-    parse_func = __parse_results_mp if mp else __parse_results_sp
+    parse_func = __parse_results_mp if multi_process else __parse_results_sp
     parsed_results = parse_func(in_dir, raw_out_dir, scenarios, config_columns, measure_type)
 
     return measure_type, auto_detect, parsed_results

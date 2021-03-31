@@ -98,7 +98,7 @@ def main(name, argv):
 
     if mode.do_parse():
         logger.info("Starting parsing")
-        measure_type, auto_detect, parsed_results = parse.parse_results(in_dir, out_dir, mp=multi_process)
+        measure_type, auto_detect, parsed_results = parse.parse_results(in_dir, out_dir, multi_process=multi_process)
         logger.info("Parsing done")
 
     if mode.do_analyze():
