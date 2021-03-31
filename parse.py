@@ -729,3 +729,17 @@ def parse(in_dir="~/measure"):
         'stats': df_stats,
         'runs': df_runs,
     }
+
+
+def parse_env(in_dir="~/measure"):
+    env = {}
+    try:
+        with open(os.path.join(in_dir, "environment.txt"), 'r') as env_file:
+            env = {key: value for key, value in
+                   filter(lambda x: len(x) == 2,
+                          [line.split('=', 1) for line in env_file.readlines()])
+                   }
+    except IOError:
+        pass
+
+    return env

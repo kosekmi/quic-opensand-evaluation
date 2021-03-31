@@ -7,36 +7,56 @@ import sys
 
 import pandas as pd
 
-from analyze import analyze_all
+import analyze
+import parse
 from common import Mode, Type, RAW_DATA_DIR
-from parse import parse
 
 
-def parse_args(argv):
+def usage(name):
+    print(
+        "Usage: %s -i <input> -o <output>\n"
+        "\n"
+        "-a, --analyze       Analyze previously parsed results\n"
+        "-d, --auto-detect   Try to automatically configure analysis from input\n"
+        "-h, --help          Print this help message\n"
+        "-i, --input=<dir>   Input directory to read the measurement results from\n"
+        "-o, --output=<dir>  Output directory to put the parsed results and graphs to\n"
+        "-p, --parse         Parse only and skip analysis"
+        "" % name
+    )
+
+
+def parse_args(name, argv):
     in_dir = "~/measure"
     out_dir = "."
+    auto_detect = False
     mode = Mode.ALL
 
     try:
-        opts, args = getopt.getopt(argv, "i:o:pa", ["input=", "output="])
+        opts, args = getopt.getopt(argv, "adhi:o:p", ["analyze", "auto-detect", "help", "input=", "output=", "parse"])
     except getopt.GetoptError:
         print("parse.py -i <input_dir> -o <output_dir>")
         sys.exit(2)
 
     for opt, arg in opts:
-        if opt in ("-i", "--input"):
+        if opt in ("-a", "analyze"):
+            mode = Mode.ANALYZE
+        elif opt in ("-d", "--auto-detect"):
+            auto_detect = True
+        elif opt in ("-h", "--help"):
+            usage(name)
+            sys.exit(0)
+        elif opt in ("-i", "--input"):
             in_dir = arg
         elif opt in ("-o", "--output"):
             out_dir = arg
-        elif opt in ("-a",):
-            mode = Mode.ANALYZE
-        elif opt in ("-p",):
+        elif opt in ("-p", "parse"):
             mode = Mode.PARSE
 
-    return in_dir, out_dir, mode
+    return in_dir, out_dir, auto_detect, mode
 
 
-def main(argv):
+def main(name, argv):
     global logger
 
     try:
@@ -50,7 +70,7 @@ def main(argv):
         handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s'))
         logger.addHandler(handler)
 
-    in_dir, out_dir, mode = parse_args(argv)
+    in_dir, out_dir, auto_detect, mode = parse_args(name, argv)
 
     if not os.path.exists(out_dir):
         os.mkdir(out_dir)
@@ -63,7 +83,7 @@ def main(argv):
 
     if mode.do_parse():
         logger.info("Starting parsing")
-        measure_type, parsed_results = parse(in_dir)
+        measure_type, parsed_results = parse.parse(in_dir)
         logger.info("Parsing done")
 
     if parsed_results is not None:
@@ -103,10 +123,19 @@ def main(argv):
                 logger.debug("Loading %s" % file)
                 parsed_results[match.group(1)] = pd.read_pickle(file)
 
+        if auto_detect:
+            env = parse.parse_env(in_dir)
+            if 'MEASURE_TIME' in env:
+                analyze.GRAPH_PLOT_SECONDS = float(env['MEASURE_TIME'])
+                logger.debug("Detected GRAPH_PLOT_SECONDS as %f", analyze.GRAPH_PLOT_SECONDS)
+            if 'REPORT_INTERVAL' in env:
+                analyze.GRAPH_X_BUCKET = float(env['REPORT_INTERVAL'])
+                logger.debug("Detected GRAPH_X_BUCKET as %f", analyze.GRAPH_X_BUCKET)
+
         logger.info("Starting analysis")
-        analyze_all(parsed_results, measure_type, out_dir=out_dir)
+        analyze.analyze_all(parsed_results, measure_type, out_dir=out_dir)
         logger.info("Analysis done")
 
 
 if __name__ == '__main__':
-    main(sys.argv[1:])
+    main(sys.argv[0], sys.argv[1:])
