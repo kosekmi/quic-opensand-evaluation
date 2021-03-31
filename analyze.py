@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 from pygnuplot import gnuplot
 
-from common import Type, GRAPH_DIR, DATA_DIR
+from common import MeasureType, GRAPH_DIR, DATA_DIR
 
 LINE_COLORS = ['black', 'red', 'dark-violet', 'blue', 'dark-green', 'dark-orange', 'gold', 'cyan']
 POINT_TYPES = [2, 4, 8, 10, 6, 12, 9, 11]
@@ -1348,88 +1348,88 @@ def analyze_stats(df_stats, df_runs, out_dir="."):
     g.plot_data(df_stats[['cpu_load']], plot_cmd)
 
 
-def analyze_all(parsed_results: dict, measure_type: Type, out_dir="."):
+def analyze_all(parsed_results: dict, measure_type: MeasureType, out_dir="."):
     logger.info("Analyzing goodput")
     goodput_cols = ['protocol', 'pep', 'sat', 'run', 'second', 'bps']
-    if measure_type == Type.NETEM:
+    if measure_type == MeasureType.NETEM:
         goodput_cols.extend(['rate', 'loss', 'queue'])
-    elif measure_type == Type.OPENSAND:
+    elif measure_type == MeasureType.OPENSAND:
         goodput_cols.extend(['attenuation', 'tbs', 'qbs', 'ubs'])
     df_goodput = pd.concat([
         parsed_results['quic_client'][goodput_cols],
         parsed_results['tcp_client'][goodput_cols],
     ], axis=0, ignore_index=True)
-    if measure_type == Type.NETEM:
+    if measure_type == MeasureType.NETEM:
         analyze_netem_goodput(df_goodput, out_dir)
         analyze_netem_goodput_matrix(df_goodput, out_dir)
-    elif measure_type == Type.OPENSAND:
+    elif measure_type == MeasureType.OPENSAND:
         analyze_opensand_goodput(df_goodput, out_dir)
         analyze_opensand_goodput_matrix(df_goodput, out_dir)
 
     logger.info("Analyzing congestion window evolution")
     cwnd_evo_cols = ['protocol', 'pep', 'sat', 'run', 'second', 'cwnd']
-    if measure_type == Type.NETEM:
+    if measure_type == MeasureType.NETEM:
         cwnd_evo_cols.extend(['rate', 'loss', 'queue'])
-    elif measure_type == Type.OPENSAND:
+    elif measure_type == MeasureType.OPENSAND:
         cwnd_evo_cols.extend(['attenuation', 'tbs', 'qbs', 'ubs'])
     df_cwnd_evo = pd.concat([
         parsed_results['quic_server'][cwnd_evo_cols],
         parsed_results['tcp_server'][cwnd_evo_cols],
     ], axis=0, ignore_index=True)
-    if measure_type == Type.NETEM:
+    if measure_type == MeasureType.NETEM:
         analyze_netem_cwnd_evo(df_cwnd_evo, out_dir)
         analyze_netem_cwnd_evo_matrix(df_cwnd_evo, out_dir)
-    elif measure_type == Type.OPENSAND:
+    elif measure_type == MeasureType.OPENSAND:
         analyze_opensand_cwnd_evo(df_cwnd_evo, out_dir)
         analyze_opensand_cwnd_evo_matrix(df_cwnd_evo, out_dir)
 
     logger.info("Analyzing packet loss")
     pkt_loss_cols = ['protocol', 'pep', 'sat', 'run', 'second', 'packets_lost']
-    if measure_type == Type.NETEM:
+    if measure_type == MeasureType.NETEM:
         pkt_loss_cols.extend(['rate', 'loss', 'queue'])
-    elif measure_type == Type.OPENSAND:
+    elif measure_type == MeasureType.OPENSAND:
         pkt_loss_cols.extend(['attenuation', 'tbs', 'qbs', 'ubs'])
     df_pkt_loss = pd.concat([
         parsed_results['quic_server'][pkt_loss_cols],
         parsed_results['tcp_server'][pkt_loss_cols],
     ], axis=0, ignore_index=True)
-    if measure_type == Type.NETEM:
+    if measure_type == MeasureType.NETEM:
         analyze_netem_packet_loss(df_pkt_loss, out_dir)
         analyze_netem_packet_loss_matrix(df_pkt_loss, out_dir)
-    elif measure_type == Type.OPENSAND:
+    elif measure_type == MeasureType.OPENSAND:
         analyze_opensand_packet_loss(df_pkt_loss, out_dir)
         analyze_opensand_packet_loss_matrix(df_pkt_loss, out_dir)
 
     logger.info("Analyzing RTT")
     rtt_cols = ['sat', 'seq', 'rtt']
-    if measure_type == Type.NETEM:
+    if measure_type == MeasureType.NETEM:
         rtt_cols.extend(['rate', 'loss', 'queue'])
-    elif measure_type == Type.OPENSAND:
+    elif measure_type == MeasureType.OPENSAND:
         rtt_cols.extend(['attenuation', 'tbs', 'qbs', 'ubs'])
     df_rtt = pd.DataFrame(parsed_results['ping_raw'][rtt_cols])
-    if measure_type == Type.NETEM:
+    if measure_type == MeasureType.NETEM:
         analyze_netem_rtt(df_rtt, out_dir)
-    elif measure_type == Type.OPENSAND:
+    elif measure_type == MeasureType.OPENSAND:
         analyze_opensand_rtt(df_rtt, out_dir)
 
     logger.info("Analyzing TTFB")
     df_con_times = pd.concat([
-        parsed_results['quic_times'],
-        parsed_results['tcp_times'],
+        parsed_results['quic_timing'],
+        parsed_results['tcp_timing'],
     ], axis=0, ignore_index=True)
-    if measure_type == Type.NETEM:
+    if measure_type == MeasureType.NETEM:
         analyze_netem_ttfb(df_con_times, out_dir)
-    elif measure_type == Type.OPENSAND:
+    elif measure_type == MeasureType.OPENSAND:
         analyze_opensand_ttfb(df_con_times, out_dir)
 
     logger.info("Analyzing connection establishment")
-    if measure_type == Type.NETEM:
+    if measure_type == MeasureType.NETEM:
         analyze_netem_conn_est(df_con_times, out_dir)
-    elif measure_type == Type.OPENSAND:
+    elif measure_type == MeasureType.OPENSAND:
         analyze_opensand_conn_est(df_con_times, out_dir)
 
     logger.info("Analyzing stats")
-    if measure_type == Type.OPENSAND:
+    if measure_type == MeasureType.OPENSAND:
         df_stats = pd.DataFrame(parsed_results['stats'])
         df_runs = pd.DataFrame(parsed_results['runs'])
         df_stats.index = df_stats.index.total_seconds()

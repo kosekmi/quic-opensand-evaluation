@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 from enum import Enum
 
-RAW_DATA_DIR = 'raw'
+RAW_DATA_DIR = 'parsed'
 GRAPH_DIR = 'graphs'
 DATA_DIR = 'data'
+
+TYPE_FILE = '.type'
+AUTO_DETECT_FILE = '.auto-detect'
 
 
 class Mode(Enum):
@@ -18,7 +21,7 @@ class Mode(Enum):
         return self == Mode.ANALYZE or self == Mode.ALL
 
 
-class Type(Enum):
+class MeasureType(Enum):
     NETEM = 1
     OPENSAND = 2
 
