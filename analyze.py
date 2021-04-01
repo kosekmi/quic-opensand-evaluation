@@ -183,7 +183,9 @@ def prepare_time_series_graph_data(df: pd.DataFrame, x_col: str, y_col: str, x_r
         else:
             start = gdf[x_col].min()
             end = gdf[x_col].max()
-        buckets = np.arange(start=start, stop=end + x_bucket, step=x_bucket)
+        # Start one bucket earlier to add zero data point (lines start at origin)
+        # End one bucket after since each bucket is defined as [a;b) with a being the name of the bucket
+        buckets = np.arange(start=start - x_bucket, stop=end + x_bucket, step=x_bucket)
         gdf[x_col] = pd.cut(gdf[x_col], buckets, labels=buckets[1:])
 
     # Calculate mean average per y_value (e.g. per second calculate mean average from each run)
@@ -209,6 +211,8 @@ def prepare_time_series_graph_data(df: pd.DataFrame, x_col: str, y_col: str, x_r
 
     # Merge line data into single df
     plot_df = pd.concat([x[0] for x in gdata], axis=1)
+    # Make first category (named 0.0) start at the origin
+    plot_df.iloc[0] = 0
     # Generate plot commands
     plot_cmds = [
         "using 1:($%d/%f) with linespoints pointtype %d linecolor '%s' title '%s%s'" %
