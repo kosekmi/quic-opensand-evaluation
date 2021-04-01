@@ -433,7 +433,7 @@ def plot_time_series_matrix(df: pd.DataFrame, out_dir: str, analysis_name: str, 
                 data_tuple[0] if len(data_tuple[0]) == 0 else ("%s " % data_tuple[0]),
                 format_data_title(*data_tuple[1:])
             )
-            for data_tuple in key_data
+            for data_tuple in sorted(key_data)
         ]
         subfigures.append(gnuplot.make_plot(
             *key_cmds,
