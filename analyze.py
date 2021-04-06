@@ -1241,6 +1241,60 @@ def analyze_opensand_cwnd_evo_matrix(df: pd.DataFrame, out_dir: str):
                                 sort_matrix_y=lambda yvals: sorted(yvals, reverse=True))
 
 
+def analyze_opensand_cwnd_evo_cc_matrix(df: pd.DataFrame, out_dir: str):
+    plot_time_series_matrix(df, out_dir,
+                            analysis_name='CWND_EVO_CC',
+                            file_cols=['attenuation'],
+                            data_cols=['ccs'],
+                            matrix_x_cols=['sat'],
+                            matrix_y_cols=['protocol', 'pep', 'tbs', 'qbs', 'ubs'],
+                            x_col='second',
+                            y_col='cwnd',
+                            x_range=(0, GRAPH_PLOT_SECONDS),
+                            x_bucket=GRAPH_X_BUCKET,
+                            y_div=1000,
+                            x_label="Time (s)",
+                            y_label="Congestion window (KB)",
+                            point_type_indices=[],
+                            line_color_indices=[0],
+                            format_data_title=lambda ccs:
+                            "CC: %s" % ccs,
+                            format_subplot_title=lambda sat, protocol, pep, tbs, qbs, ubs:
+                            "Goodput Evolution - %s - %s%s" % (sat, protocol.upper(), " (PEP)" if pep else ""),
+                            format_file_title=lambda attenuation:
+                            "Congestion Window Evolution - %ddB" % attenuation,
+                            format_file_base=lambda attenuation:
+                            "matrix_cwnd_evo_cc_%gs_a%d" % (GRAPH_X_BUCKET, attenuation),
+                            sort_matrix_x=lambda xvals: sorted(xvals, key=lambda xt: sat_key(xt[0])),
+                            sort_matrix_y=lambda yvals: sorted(yvals, reverse=True))
+    if GRAPH_X_BUCKET != 1:
+        plot_time_series_matrix(df, out_dir,
+                                analysis_name='CWND_EVO_CC_1S',
+                                file_cols=['attenuation'],
+                                data_cols=['ccs'],
+                                matrix_x_cols=['sat'],
+                                matrix_y_cols=['protocol', 'pep', 'tbs', 'qbs', 'ubs'],
+                                x_col='second',
+                                y_col='cwnd',
+                                x_range=(0, GRAPH_PLOT_SECONDS),
+                                x_bucket=1,
+                                y_div=1000,
+                                x_label="Time (s)",
+                                y_label="Congestion window (KB)",
+                                point_type_indices=[],
+                                line_color_indices=[0],
+                                format_data_title=lambda ccs:
+                                "CC: %s" % ccs,
+                                format_subplot_title=lambda sat, protocol, pep, tbs, qbs, ubs:
+                                "Goodput Evolution - %s - %s%s" % (sat, protocol.upper(), " (PEP)" if pep else ""),
+                                format_file_title=lambda attenuation:
+                                "Congestion Window Evolution - %ddB" % attenuation,
+                                format_file_base=lambda attenuation:
+                                "matrix_cwnd_evo_cc_1s_a%d" % attenuation,
+                                sort_matrix_x=lambda xvals: sorted(xvals, key=lambda xt: sat_key(xt[0])),
+                                sort_matrix_y=lambda yvals: sorted(yvals, reverse=True))
+
+
 def analyze_opensand_packet_loss(df: pd.DataFrame, out_dir: str):
     plot_time_series(df, out_dir,
                      analysis_name='PACKET_LOSS',
@@ -1524,6 +1578,7 @@ def analyze_all(parsed_results: dict, measure_type: MeasureType, out_dir="."):
     elif measure_type == MeasureType.OPENSAND:
         analyze_opensand_cwnd_evo(df_cwnd_evo, out_dir)
         analyze_opensand_cwnd_evo_matrix(df_cwnd_evo, out_dir)
+        analyze_opensand_cwnd_evo_cc_matrix(df_cwnd_evo, out_dir)
 
     logger.info("Analyzing packet loss")
     pkt_loss_cols = [*time_series_cols, 'packets_lost']
