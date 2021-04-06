@@ -465,9 +465,12 @@ def __parse_tcp_client_from_scenario(in_dir: str, scenario_name: str, pep: bool 
             continue
 
         for interval in results['intervals']:
+            if float(interval['streams'][0]['seconds']) < 0.001:
+                logger.warning("%s: Skipping interval in '%s' due to small interval time", scenario_name, file_path)
+                continue
             df = df.append({
                 'run': run,
-                'second': interval['sum']['end'],
+                'second': interval['streams'][0]['end'],
                 'bps': float(interval['streams'][0]['bits_per_second']),
                 'bytes': int(interval['streams'][0]['bytes']),
                 'omitted': bool(interval['streams'][0]['omitted']),
@@ -547,9 +550,12 @@ def __parse_tcp_server_from_scenario(in_dir: str, scenario_name: str, pep: bool 
             continue
 
         for interval in results['intervals']:
+            if float(interval['streams'][0]['seconds']) < 0.001:
+                logger.warning("%s: Skipping interval in '%s' due to small interval time", scenario_name, file_path)
+                continue
             df = df.append({
                 'run': run,
-                'second': interval['sum']['end'],
+                'second': interval['streams'][0]['end'],
                 'cwnd': int(interval['streams'][0]['snd_cwnd']),
                 'bps': float(interval['streams'][0]['bits_per_second']),
                 'bytes': int(interval['streams'][0]['bytes']),
