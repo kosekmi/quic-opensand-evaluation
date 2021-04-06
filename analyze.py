@@ -15,6 +15,7 @@ POINT_TYPES = [2, 4, 8, 10, 6, 12, 9, 11, 13, 15, 17, 20, 22, 33, 34, 50]
 
 GRAPH_PLOT_SIZE_CM = (44, 8)
 GRAPH_PLOT_SECONDS = 30
+GRAPH_PLOT_RTT_SECONDS = 100
 GRAPH_X_BUCKET = 0.1
 VALUE_PLOT_SIZE_CM = (12, 8)
 MATRIX_KEY_SIZE = 0.12
@@ -902,14 +903,14 @@ def analyze_netem_packet_loss_matrix(df: pd.DataFrame, out_dir: str):
 
 
 def analyze_netem_rtt(df: pd.DataFrame, out_dir: str):
-    df['second'] = (df['seq'] / 100).astype(np.int)
+    df['second'] = df['seq'] / 100.0
     plot_time_series(df, out_dir,
                      analysis_name='RTT',
                      file_cols=['sat', 'rate', 'queue'],
                      data_cols=['loss'],
                      x_col='second',
                      y_col='rtt',
-                     x_range=None,
+                     x_range=(0, GRAPH_PLOT_RTT_SECONDS),
                      x_bucket=GRAPH_X_BUCKET,
                      y_div=1,
                      x_label="Time (s)",
@@ -921,7 +922,27 @@ def analyze_netem_rtt(df: pd.DataFrame, out_dir: str):
                      format_file_title=lambda sat, rate, queue:
                      "Round Trip Time - %s - %.0f Mbit/s - BDP*%d" % (sat, rate, queue),
                      format_file_base=lambda sat, rate, queue:
-                     "rtt_%s_r%s_q%d" % (sat, rate, queue))
+                     "rtt_%gs_%s_r%s_q%d" % (GRAPH_X_BUCKET, sat, rate, queue))
+    if GRAPH_X_BUCKET != 1:
+        plot_time_series(df, out_dir,
+                         analysis_name='RTT',
+                         file_cols=['sat', 'rate', 'queue'],
+                         data_cols=['loss'],
+                         x_col='second',
+                         y_col='rtt',
+                         x_range=(0, GRAPH_PLOT_RTT_SECONDS),
+                         x_bucket=1,
+                         y_div=1,
+                         x_label="Time (s)",
+                         y_label="RTT (ms)",
+                         point_type_indices=[0],
+                         line_color_indices=[0],
+                         format_data_title=lambda loss:
+                         "l=%.2f%%" % (loss * 100),
+                         format_file_title=lambda sat, rate, queue:
+                         "Round Trip Time - %s - %.0f Mbit/s - BDP*%d" % (sat, rate, queue),
+                         format_file_base=lambda sat, rate, queue:
+                         "rtt_1s_%s_r%s_q%d" % (sat, rate, queue))
 
 
 def analyze_netem_ttfb(df: pd.DataFrame, out_dir: str):
@@ -1317,14 +1338,14 @@ def analyze_opensand_packet_loss_matrix(df: pd.DataFrame, out_dir: str):
 
 
 def analyze_opensand_rtt(df: pd.DataFrame, out_dir: str):
-    df['second'] = (df['seq'] / 100).astype(np.int)
+    df['second'] = df['seq'] / 100.0
     plot_time_series(df, out_dir,
                      analysis_name='RTT',
                      file_cols=['sat', 'attenuation'],
                      data_cols=['ccs'],
                      x_col='second',
                      y_col='rtt',
-                     x_range=None,
+                     x_range=(0, GRAPH_PLOT_RTT_SECONDS),
                      x_bucket=GRAPH_X_BUCKET,
                      y_div=1,
                      x_label="Time (s)",
@@ -1335,7 +1356,26 @@ def analyze_opensand_rtt(df: pd.DataFrame, out_dir: str):
                      format_file_title=lambda sat, attenuation:
                      "Round Trip Time - %s - %d dB" % (sat, attenuation),
                      format_file_base=lambda sat, attenuation:
-                     "rtt_%s_a%d" % (sat, attenuation))
+                     "rtt_%gs_%s_a%d" % (GRAPH_X_BUCKET, sat, attenuation))
+    if GRAPH_X_BUCKET != 1:
+        plot_time_series(df, out_dir,
+                         analysis_name='RTT',
+                         file_cols=['sat', 'attenuation'],
+                         data_cols=['ccs'],
+                         x_col='second',
+                         y_col='rtt',
+                         x_range=(0, GRAPH_PLOT_RTT_SECONDS),
+                         x_bucket=1,
+                         y_div=1,
+                         x_label="Time (s)",
+                         y_label="RTT (ms)",
+                         point_type_indices=[],
+                         line_color_indices=[0],
+                         format_data_title=lambda ccs: "RTT cc=%s" % ccs,
+                         format_file_title=lambda sat, attenuation:
+                         "Round Trip Time - %s - %d dB" % (sat, attenuation),
+                         format_file_base=lambda sat, attenuation:
+                         "rtt_1s_%s_a%d" % (sat, attenuation))
 
 
 def analyze_opensand_ttfb(df: pd.DataFrame, out_dir: str):
