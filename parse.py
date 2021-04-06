@@ -6,6 +6,7 @@ import os.path
 import re
 import sys
 from datetime import datetime
+from itertools import islice
 from multiprocessing.dummy.connection import Connection
 from typing import Dict, List, Optional, Generator, Tuple, Callable
 
@@ -153,26 +154,103 @@ def fix_dtypes(df: pd.DataFrame) -> pd.DataFrame:
     return df.astype({col_name: dtypes[col_name] for col_name in cols})
 
 
-def parse_quic_client(in_dir: str, out_dir: str, scenarios: Dict[str, Dict], config_cols: List[str]) -> pd.DataFrame:
+def __mp_function_wrapper(parse_func: Callable[..., any], conn: Connection, *args, **kwargs) -> None:
+    result = parse_func(*args, **kwargs)
+    conn.send(result)
+    conn.close()
+
+
+def __parse_slice(parse_func: Callable[..., pd.DataFrame], in_dir: str, scenarios: List[Tuple[str, Dict]],
+                  df_cols: List[str], protocol: str, entity: str) -> pd.DataFrame:
+    """
+    Parse a slice of the protocol entity results using the given function.
+    :param parse_func: The function to parse a single scenario.
+    :param in_dir: The directory containing the measurement results.
+    :param scenarios: The scenarios to parse within the in_dir.
+    :param df_cols: The column names for columns in the resulting dataframe.
+    :param protocol: The name of the protocol that is being parsed.
+    :param entity: Then name of the entity that is being parsed.
+    :return: A dataframe containing the combined results of the specified scenarios.
+    """
+
+    df_slice = pd.DataFrame(columns=df_cols)
+
+    for folder, config in scenarios:
+        for pep in (False, True):
+            df = parse_func(in_dir, folder, pep=pep)
+            if df is not None:
+                df_slice = extend_df(df_slice, df, protocol=protocol, pep=pep, **config)
+            else:
+                logger.warning("No data %s%s %s data in %s", protocol, " (pep)" if pep else "", entity, folder)
+
+    return df_slice
+
+
+def __mp_parse_slices(num_procs: int, parse_func: Callable[..., pd.DataFrame], in_dir: str,
+                      scenarios: Dict[str, Dict], df_cols: List[str], protocol: str, entity: str) -> pd.DataFrame:
+    """
+    Parse all protocol entity results using the given function in multiple processes.
+    :param num_procs: The number of processes to spawn.
+    :param parse_func: The function to parse a single scenario.
+    :param in_dir: The directory containing the measurement results.
+    :param scenarios: The scenarios to parse within the in_dir.
+    :param df_cols: The column names for columns in the resulting dataframe.
+    :param protocol: The name of the protocol that is being parsed.
+    :param entity: Then name of the entity that is being parsed.
+    :return:
+    """
+
+    tasks = [
+        (
+            "%s_%s_%d" % (protocol, entity, i),
+            list(islice(scenarios.items(), i, sys.maxsize, num_procs)),
+            mp.Pipe()
+        )
+        for i in range(num_procs)
+    ]
+    processes = [
+        mp.Process(target=__mp_function_wrapper, name=name,
+                   args=(__parse_slice, child_con, parse_func, in_dir, s_slice, df_cols, protocol, entity))
+        for name, s_slice, (_, child_con) in tasks
+    ]
+
+    # Start processes
+    for p in processes:
+        p.start()
+
+    # Collect results
+    slice_dfs = [
+        parent_con.recv()
+        for _, _, (parent_con, _) in tasks
+    ]
+
+    # Wait for processes to finish
+    for p in processes:
+        p.join()
+
+    return pd.concat(slice_dfs, axis=0, ignore_index=True)
+
+
+def parse_quic_client(in_dir: str, out_dir: str, scenarios: Dict[str, Dict], config_cols: List[str],
+                      multi_process: bool = False) -> pd.DataFrame:
     """
     Parse all quic client results.
     :param in_dir: The directory containing the measurement results.
     :param out_dir: The directory to save the parsed results to.
     :param scenarios: The scenarios to parse within the in_dir.
     :param config_cols: The column names for columns taken from the scenario configuration.
+    :param multi_process: Whether to allow multiprocessing.
     :return: A dataframe containing the combined results from all scenarios.
     """
 
     logger.info("Parsing quic client results")
-    df_quic_client = pd.DataFrame(columns=[*config_cols, 'run', 'second', 'bps', 'bytes', 'packets_received'])
-
-    for folder, config in scenarios.items():
-        for pep in (False, True):
-            df = __parse_quic_client_from_scenario(in_dir, folder, pep=pep)
-            if df is not None:
-                df_quic_client = extend_df(df_quic_client, df, protocol='quic', pep=pep, **config)
-            else:
-                logger.warning("No data quic%s client data in %s", " (pep)" if pep else "", folder)
+    df_cols = [*config_cols, 'run', 'second', 'bps', 'bytes', 'packets_received']
+    if multi_process:
+        df_quic_client = __mp_parse_slices(2, __parse_quic_client_from_scenario, in_dir, scenarios,
+                                           df_cols, 'quic', 'client')
+    else:
+        df_quic_client = __parse_slice(__parse_quic_client_from_scenario, in_dir, [*scenarios.items()],
+                                       df_cols, 'quic', 'client')
 
     logger.debug("Fixing quic client data types")
     df_quic_client = fix_dtypes(df_quic_client)
@@ -236,26 +314,27 @@ def __parse_quic_client_from_scenario(in_dir: str, scenario_name: str, pep: bool
     return df
 
 
-def parse_quic_server(in_dir: str, out_dir: str, scenarios: Dict[str, Dict], config_cols: List[str]) -> pd.DataFrame:
+def parse_quic_server(in_dir: str, out_dir: str, scenarios: Dict[str, Dict], config_cols: List[str],
+                      multi_process: bool = False) -> pd.DataFrame:
     """
     Parse all quic server results.
     :param in_dir: The directory containing the measurement results.
     :param out_dir: The directory to save the parsed results to.
     :param scenarios: The scenarios to parse within the in_dir.
     :param config_cols: The column names for columns taken from the scenario configuration.
+    :param multi_process: Whether to allow multiprocessing.
     :return: A dataframe containing the combined results from all scenarios.
     """
 
     logger.info("Parsing quic server results")
-    df_quic_server = pd.DataFrame(columns=[*config_cols, 'run', 'second', 'cwnd', 'packets_sent', 'packets_lost'])
 
-    for folder, config in scenarios.items():
-        for pep in (False, True):
-            df = __parse_quic_server_from_scenario(in_dir, folder, pep=pep)
-            if df is not None:
-                df_quic_server = extend_df(df_quic_server, df, protocol='quic', pep=pep, **config)
-            else:
-                logger.warning("No data quic%s server data in %s", " (pep)" if pep else "", folder)
+    df_cols = [*config_cols, 'run', 'second', 'cwnd', 'packets_sent', 'packets_lost']
+    if multi_process:
+        df_quic_server = __mp_parse_slices(2, __parse_quic_server_from_scenario, in_dir, scenarios,
+                                           df_cols, 'quic', 'server')
+    else:
+        df_quic_server = __parse_slice(__parse_quic_server_from_scenario, in_dir, [*scenarios.items()],
+                                       df_cols, 'quic', 'server')
 
     logger.debug("Fixing quic server data types")
     df_quic_server = fix_dtypes(df_quic_server)
@@ -318,13 +397,15 @@ def __parse_quic_server_from_scenario(in_dir: str, scenario_name: str, pep: bool
     return df
 
 
-def parse_quic_timing(in_dir: str, out_dir: str, scenarios: Dict[str, Dict], config_cols: List[str]) -> pd.DataFrame:
+def parse_quic_timing(in_dir: str, out_dir: str, scenarios: Dict[str, Dict], config_cols: List[str],
+                      multi_process: bool = False) -> pd.DataFrame:
     """
     Parse all quic timing results.
     :param in_dir: The directory containing the measurement results.
     :param out_dir: The directory to save the parsed results to.
     :param scenarios: The scenarios to parse within the in_dir.
     :param config_cols: The column names for columns taken from the scenario configuration.
+    :param multi_process: Whether to allow multiprocessing.
     :return: A dataframe containing the combined results from all scenarios.
     """
 
@@ -404,26 +485,27 @@ def __parse_quic_timing_from_scenario(in_dir: str, scenario_name: str, pep: bool
     return df
 
 
-def parse_tcp_client(in_dir: str, out_dir: str, scenarios: Dict[str, Dict], config_cols: List[str]) -> pd.DataFrame:
+def parse_tcp_client(in_dir: str, out_dir: str, scenarios: Dict[str, Dict], config_cols: List[str],
+                     multi_process: bool = False) -> pd.DataFrame:
     """
     Parse all tcp client results.
     :param in_dir: The directory containing the measurement results.
     :param out_dir: The directory to save the parsed results to.
     :param scenarios: The scenarios to parse within the in_dir.
     :param config_cols: The column names for columns taken from the scenario configuration.
+    :param multi_process: Whether to allow multiprocessing.
     :return: A dataframe containing the combined results from all scenarios.
     """
 
     logger.info("Parsing tcp client results")
-    df_tcp_client = pd.DataFrame(columns=[*config_cols, 'run', 'second', 'bps', 'bytes', 'omitted'])
 
-    for folder, config in scenarios.items():
-        for pep in (False, True):
-            df = __parse_tcp_client_from_scenario(in_dir, folder, pep=pep)
-            if df is not None:
-                df_tcp_client = extend_df(df_tcp_client, df, protocol='tcp', pep=pep, **config)
-            else:
-                logger.warning("No data tcp%s client data in %s", " (pep)" if pep else "", folder)
+    df_cols = [*config_cols, 'run', 'second', 'bps', 'bytes', 'omitted']
+    if multi_process:
+        df_tcp_client = __mp_parse_slices(4, __parse_tcp_client_from_scenario, in_dir, scenarios,
+                                          df_cols, 'tcp', 'client')
+    else:
+        df_tcp_client = __parse_slice(__parse_tcp_client_from_scenario, in_dir, [*scenarios.items()],
+                                      df_cols, 'tcp', 'client')
 
     logger.debug("Fixing tcp client data types")
     df_tcp_client = fix_dtypes(df_tcp_client)
@@ -488,27 +570,27 @@ def __parse_tcp_client_from_scenario(in_dir: str, scenario_name: str, pep: bool 
     return df
 
 
-def parse_tcp_server(in_dir: str, out_dir: str, scenarios: Dict[str, Dict], config_cols: List[str]) -> pd.DataFrame:
+def parse_tcp_server(in_dir: str, out_dir: str, scenarios: Dict[str, Dict], config_cols: List[str],
+                     multi_process: bool = False) -> pd.DataFrame:
     """
     Parse all tcp server results.
     :param in_dir: The directory containing the measurement results.
     :param out_dir: The directory to save the parsed results to.
     :param scenarios: The scenarios to parse within the in_dir.
     :param config_cols: The column names for columns taken from the scenario configuration.
+    :param multi_process: Whether to allow multiprocessing.
     :return: A dataframe containing the combined results from all scenarios.
     """
 
     logger.info("Parsing tcp server results")
-    df_tcp_server = pd.DataFrame(columns=[*config_cols, 'run', 'second', 'cwnd', 'bps', 'bytes',
-                                          'packets_lost', 'rtt', 'omitted'])
 
-    for folder, config in scenarios.items():
-        for pep in (False, True):
-            df = __parse_tcp_server_from_scenario(in_dir, folder, pep=pep)
-            if df is not None:
-                df_tcp_server = extend_df(df_tcp_server, df, protocol='tcp', pep=pep, **config)
-            else:
-                logger.warning("No data tcp%s server data in %s", " (pep)" if pep else "", folder)
+    df_cols = [*config_cols, 'run', 'second', 'cwnd', 'bps', 'bytes', 'packets_lost', 'rtt', 'omitted']
+    if multi_process:
+        df_tcp_server = __mp_parse_slices(4, __parse_tcp_client_from_scenario, in_dir, scenarios,
+                                          df_cols, 'tcp', 'server')
+    else:
+        df_tcp_server = __parse_slice(__parse_tcp_client_from_scenario, in_dir, [*scenarios.items()],
+                                      df_cols, 'tcp', 'server')
 
     logger.debug("Fixing tcp server data types")
     df_tcp_server = fix_dtypes(df_tcp_server)
@@ -576,13 +658,15 @@ def __parse_tcp_server_from_scenario(in_dir: str, scenario_name: str, pep: bool 
     return df
 
 
-def parse_tcp_timing(in_dir: str, out_dir: str, scenarios: Dict[str, Dict], config_cols: List[str]) -> pd.DataFrame:
+def parse_tcp_timing(in_dir: str, out_dir: str, scenarios: Dict[str, Dict], config_cols: List[str],
+                     multi_process: bool = False) -> pd.DataFrame:
     """
     Parse all tcp timing results.
     :param in_dir: The directory containing the measurement results.
     :param out_dir: The directory to save the parsed results to.
     :param scenarios: The scenarios to parse within the in_dir.
     :param config_cols: The column names for columns taken from the scenario configuration.
+    :param multi_process: Whether to allow multiprocessing.
     :return: A dataframe containing the combined results from all scenarios.
     """
 
@@ -662,14 +746,15 @@ def __parse_tcp_timing_from_scenario(in_dir: str, scenario_name: str, pep: bool 
     return df
 
 
-def parse_ping(in_dir: str, out_dir: str, scenarios: Dict[str, Dict], config_cols: List[str]) \
-        -> Tuple[pd.DataFrame, pd.DataFrame]:
+def parse_ping(in_dir: str, out_dir: str, scenarios: Dict[str, Dict], config_cols: List[str],
+               multi_process: bool = False) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
     Parse all ping results.
     :param in_dir: The directory containing the measurement results.
     :param out_dir: The directory to save the parsed results to.
     :param scenarios: The scenarios to parse within the in_dir.
     :param config_cols: The column names for columns taken from the scenario configuration.
+    :param multi_process: Whether to allow multiprocessing.
     :return: Two dataframes containing the combined results from all scenarios, one with the raw data and one with the
     summary data.
     """
@@ -921,13 +1006,6 @@ def list_result_folders(root_folder: str) -> Generator[str, None, None]:
         yield folder_name
 
 
-def __mp_parse_wrapper(parse_func: Callable[[str, str, Dict[str, Dict], List[str]], pd.DataFrame], conn: Connection,
-                       in_dir: str, out_dir: str, scenarios: Dict[str, Dict], config_columns: List[str]) -> None:
-    result = parse_func(in_dir, out_dir, scenarios, config_columns)
-    conn.send(result)
-    conn.close()
-
-
 def __parse_results_mp(in_dir: str, out_dir: str, scenarios: Dict[str, Dict], config_columns: List[str],
                        measure_type: common.MeasureType) -> Dict[str, pd.DataFrame]:
     tasks = [
@@ -941,8 +1019,8 @@ def __parse_results_mp(in_dir: str, out_dir: str, scenarios: Dict[str, Dict], co
     ]
 
     processes = [
-        mp.Process(target=__mp_parse_wrapper, name=name,
-                   args=(func, client_con, in_dir, out_dir, scenarios, config_columns))
+        mp.Process(target=__mp_function_wrapper, name=name,
+                   args=(func, client_con, in_dir, out_dir, scenarios, config_columns, True))
         for name, func, (_, client_con) in tasks
     ]
 
