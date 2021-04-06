@@ -1,4 +1,5 @@
 import logging
+import multiprocessing as mp
 import os
 import sys
 from typing import Optional, Dict, Tuple, Iterable, List, Callable, Generator
@@ -30,7 +31,7 @@ except NameError:
     logger.setLevel(logging.DEBUG)
     handler = logging.StreamHandler(sys.stdout)
     handler.setLevel(logging.DEBUG)
-    handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s'))
+    handler.setFormatter(logging.Formatter('%(asctime)s %(processName)s [%(levelname)s] %(message)s'))
     logger.addHandler(handler)
 
 PointMap = Dict[any, int]
@@ -1198,19 +1199,16 @@ def analyze_stats(df_stats, df_runs, out_dir="."):
     g.plot_data(df_stats[['cpu_load']], plot_cmd)
 
 
-def analyze_all(parsed_results: dict, measure_type: MeasureType, out_dir="."):
-    time_series_cols = ['protocol', 'pep', 'sat', 'run', 'second']
-    if measure_type == MeasureType.NETEM:
-        time_series_cols.extend(['rate', 'loss', 'queue'])
-    elif measure_type == MeasureType.OPENSAND:
-        time_series_cols.extend(['attenuation', 'ccs', 'tbs', 'qbs', 'ubs'])
-
+def __analyze_all_goodput(parsed_results: dict, measure_type: MeasureType, out_dir: str,
+                          time_series_cols: List[str]) -> None:
     logger.info("Analyzing goodput")
+
     goodput_cols = [*time_series_cols, 'bps']
     df_goodput = pd.concat([
         parsed_results['quic_client'][goodput_cols],
         parsed_results['tcp_client'][goodput_cols],
     ], axis=0, ignore_index=True)
+
     if measure_type == MeasureType.NETEM:
         analyze_netem_goodput(df_goodput, out_dir)
         analyze_netem_goodput_matrix(df_goodput, out_dir)
@@ -1219,12 +1217,17 @@ def analyze_all(parsed_results: dict, measure_type: MeasureType, out_dir="."):
         analyze_opensand_goodput_matrix(df_goodput, out_dir)
         analyze_opensand_goodput_cc_matrix(df_goodput, out_dir)
 
+
+def __analyze_all_cwnd_evo(parsed_results: dict, measure_type: MeasureType, out_dir: str,
+                           time_series_cols: List[str]) -> None:
     logger.info("Analyzing congestion window evolution")
+
     cwnd_evo_cols = [*time_series_cols, 'cwnd']
     df_cwnd_evo = pd.concat([
         parsed_results['quic_server'][cwnd_evo_cols],
         parsed_results['tcp_server'][cwnd_evo_cols],
     ], axis=0, ignore_index=True)
+
     if measure_type == MeasureType.NETEM:
         analyze_netem_cwnd_evo(df_cwnd_evo, out_dir)
         analyze_netem_cwnd_evo_matrix(df_cwnd_evo, out_dir)
@@ -1233,12 +1236,17 @@ def analyze_all(parsed_results: dict, measure_type: MeasureType, out_dir="."):
         analyze_opensand_cwnd_evo_matrix(df_cwnd_evo, out_dir)
         analyze_opensand_cwnd_evo_cc_matrix(df_cwnd_evo, out_dir)
 
+
+def __analyze_all_packet_loss(parsed_results: dict, measure_type: MeasureType, out_dir: str,
+                              time_series_cols: List[str]) -> None:
     logger.info("Analyzing packet loss")
+
     pkt_loss_cols = [*time_series_cols, 'packets_lost']
     df_pkt_loss = pd.concat([
         parsed_results['quic_server'][pkt_loss_cols],
         parsed_results['tcp_server'][pkt_loss_cols],
     ], axis=0, ignore_index=True)
+
     if measure_type == MeasureType.NETEM:
         analyze_netem_packet_loss(df_pkt_loss, out_dir)
         analyze_netem_packet_loss_matrix(df_pkt_loss, out_dir)
@@ -1246,19 +1254,27 @@ def analyze_all(parsed_results: dict, measure_type: MeasureType, out_dir="."):
         analyze_opensand_packet_loss(df_pkt_loss, out_dir)
         analyze_opensand_packet_loss_matrix(df_pkt_loss, out_dir)
 
-    logger.info("Analyzing RTT")
+
+def __analyze_all_rtt(parsed_results: dict, measure_type: MeasureType, out_dir: str) -> None:
+    logger.info("Analyzing round trip time")
+
     rtt_cols = ['sat', 'seq', 'rtt']
     if measure_type == MeasureType.NETEM:
         rtt_cols.extend(['rate', 'loss', 'queue'])
     elif measure_type == MeasureType.OPENSAND:
         rtt_cols.extend(['attenuation', 'ccs', 'tbs', 'qbs', 'ubs'])
+
     df_rtt = pd.DataFrame(parsed_results['ping_raw'][rtt_cols])
+
     if measure_type == MeasureType.NETEM:
         analyze_netem_rtt(df_rtt, out_dir)
     elif measure_type == MeasureType.OPENSAND:
         analyze_opensand_rtt(df_rtt, out_dir)
 
-    logger.info("Analyzing TTFB")
+
+def __analyze_all_timing(parsed_results: dict, measure_type: MeasureType, out_dir: str) -> None:
+    logger.info("Analyzing time to first byte")
+
     df_con_times = pd.concat([
         parsed_results['quic_timing'],
         parsed_results['tcp_timing'],
@@ -1274,6 +1290,8 @@ def analyze_all(parsed_results: dict, measure_type: MeasureType, out_dir="."):
     elif measure_type == MeasureType.OPENSAND:
         analyze_opensand_conn_est(df_con_times, out_dir)
 
+
+def __analyze_all_stats(parsed_results: dict, measure_type: MeasureType, out_dir: str) -> None:
     logger.info("Analyzing stats")
     if measure_type == MeasureType.OPENSAND:
         df_stats = pd.DataFrame(parsed_results['stats'])
@@ -1281,3 +1299,40 @@ def analyze_all(parsed_results: dict, measure_type: MeasureType, out_dir="."):
         df_stats.index = df_stats.index.total_seconds()
         df_runs.index = df_runs.index.total_seconds()
         analyze_stats(df_stats, df_runs, out_dir)
+
+
+def analyze_all(parsed_results: dict, measure_type: MeasureType, out_dir: str, multi_process: bool = False):
+    time_series_cols = ['protocol', 'pep', 'sat', 'run', 'second']
+    if measure_type == MeasureType.NETEM:
+        time_series_cols.extend(['rate', 'loss', 'queue'])
+    elif measure_type == MeasureType.OPENSAND:
+        time_series_cols.extend(['attenuation', 'ccs', 'tbs', 'qbs', 'ubs'])
+
+    if multi_process:
+        processes = [
+            mp.Process(target=__analyze_all_goodput, name='goodput',
+                       args=(parsed_results, measure_type, out_dir, time_series_cols)),
+            mp.Process(target=__analyze_all_cwnd_evo, name='cwnd_evo',
+                       args=(parsed_results, measure_type, out_dir, time_series_cols)),
+            mp.Process(target=__analyze_all_packet_loss, name='packet_loss',
+                       args=(parsed_results, measure_type, out_dir, time_series_cols)),
+            mp.Process(target=__analyze_all_rtt, name='rtt',
+                       args=(parsed_results, measure_type, out_dir)),
+            mp.Process(target=__analyze_all_timing, name='timing',
+                       args=(parsed_results, measure_type, out_dir)),
+        ]
+
+        for p in processes:
+            p.start()
+
+        __analyze_all_stats(parsed_results, measure_type, out_dir)
+
+        for p in processes:
+            p.join()
+    else:
+        __analyze_all_goodput(parsed_results, measure_type, out_dir, time_series_cols)
+        __analyze_all_cwnd_evo(parsed_results, measure_type, out_dir, time_series_cols)
+        __analyze_all_packet_loss(parsed_results, measure_type, out_dir, time_series_cols)
+        __analyze_all_rtt(parsed_results, measure_type, out_dir)
+        __analyze_all_timing(parsed_results, measure_type, out_dir)
+        __analyze_all_stats(parsed_results, measure_type, out_dir)

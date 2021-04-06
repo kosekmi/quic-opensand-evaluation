@@ -114,7 +114,7 @@ def main(name, argv):
                 logger.debug("Detected GRAPH_X_BUCKET as %f", analyze.GRAPH_X_BUCKET)
 
         logger.info("Starting analysis")
-        analyze.analyze_all(parsed_results, measure_type, out_dir=out_dir)
+        analyze.analyze_all(parsed_results, measure_type, out_dir, multi_process=multi_process)
         logger.info("Analysis done")
 
 
