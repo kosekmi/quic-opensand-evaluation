@@ -86,6 +86,18 @@ def sat_key(sat: str):
         return -1
 
 
+def apply_si(val: str) -> int:
+    SI = {
+        'K': 2 ** 10, 'M': 2 ** 20, 'G': 2 ** 30, 'T': 2 ** 40, 'P': 2 ** 50, 'E': 2 ** 60,
+        'k': 10 ** 3, 'm': 10 ** 6, 'g': 10 ** 9, 't': 10 ** 12, 'p': 10 ** 15, 'e': 10 ** 18,
+    }
+
+    if val.isdecimal():
+        return int(val)
+    if val[:-1].isdecimal():
+        return int(val[:-1]) * SI.get(val[-1:], -1)
+
+
 def sat_tuple_key(section_tuple: Tuple[any, ...]):
     return sat_key(section_tuple[0])
 
@@ -121,6 +133,45 @@ def unique_cross_product(df: pd.DataFrame, *col_names: str) -> Generator[Tuple[a
                 break
             elif cid != 0:
                 vids[cid] = 0
+
+
+def not_nan_tuples(df: pd.DataFrame, data_cols: List[str], nan_cols: List[str]) -> Generator[
+    Tuple[any, ...], None, None]:
+    """
+    Creates a unique cross product of the data cols and filters those tuples out where all values in the nan_cols are
+    NaN.
+    :param df: The dataframe to create the cartesian product from and which to use for the NaN check
+    :param data_cols: The names of the columns to create the unique cartesian product from
+    :param nan_cols: The names of the columns to look at when deciding if the data are NaN
+    :return: The filtered unique cartesian product.
+    """
+
+    for data_tuple in unique_cross_product(df, *data_cols):
+        data_filter = True
+        for col_name, col_val in zip(data_cols, data_tuple):
+            data_filter &= df[col_name] == col_val
+        if not df.loc[data_filter][nan_cols].isnull().values.all():
+            yield data_tuple
+
+
+def filter_by_tuples(df: pd.DataFrame, tuples: List[Tuple[any, ...]], cols: List[str]) -> pd.DataFrame:
+    """
+    Filters the dataframe by the given tuples. Only such rows remain, where the specified columns have one of the tuples
+    as values.
+    :param df: The dataframe to filter
+    :param tuples: The tuples to filter by
+    :param cols: The names of the columns to match the tuples to
+    :return: The filtered dataframe
+    """
+
+    data_filter = False
+    for filter_tuple in tuples:
+        tuple_filter = True
+        for col_name, col_val in zip(cols, filter_tuple):
+            tuple_filter &= df[col_name] == col_val
+        data_filter |= tuple_filter
+
+    return df.loc[data_filter]
 
 
 def filter_graph_data(df: pd.DataFrame, x_col: str, x_range: Optional[Tuple[int, int]], file_cols: List[str],
@@ -550,13 +601,21 @@ def plot_timing(df: pd.DataFrame, out_dir: str, analysis_name: str, file_cols: L
 
         # Move index back to columns
         full_gdf.reset_index(inplace=True)
+        data_cols = ['mean', 'p_low', 'p_high']
+
+        # Filter not nan tuples
+        sections_sorted = sort_section(list(not_nan_tuples(full_gdf, section_cols, data_cols)))
+        ticks_sorted = sort_tick(list(not_nan_tuples(full_gdf, tick_cols, data_cols)))
+        skews_sorted = sort_skew(list(not_nan_tuples(full_gdf, skew_cols, data_cols)))
+
+        # Filter dataframe accordingly
+        full_gdf = filter_by_tuples(full_gdf, sections_sorted, section_cols)
+        full_gdf = filter_by_tuples(full_gdf, ticks_sorted, tick_cols)
+        full_gdf = filter_by_tuples(full_gdf, skews_sorted, skew_cols)
 
         # Generate indexes used to calculate x coordinate in plot
-        sections_sorted = sort_section(list(unique_cross_product(full_gdf, *section_cols)))
         full_gdf['section_idx'] = full_gdf[section_cols].apply(lambda x: sections_sorted.index(tuple(x)), axis=1)
-        ticks_sorted = sort_tick(list(unique_cross_product(full_gdf, *tick_cols)))
         full_gdf['tick_idx'] = full_gdf[tick_cols].apply(lambda x: ticks_sorted.index(tuple(x)), axis=1)
-        skews_sorted = sort_skew(list(unique_cross_product(full_gdf, *skew_cols)))
         full_gdf['skew_idx'] = full_gdf[skew_cols].apply(lambda x: skews_sorted.index(tuple(x)), axis=1)
 
         full_gdf = full_gdf[['section_idx', 'tick_idx', 'skew_idx', 'mean', 'p_low', 'p_high',
@@ -1167,10 +1226,11 @@ def analyze_opensand_ttfb(df: pd.DataFrame, out_dir: str):
                 "ttfb_%s%s_a%d" % (protocol, "_pep" if pep else "", attenuation),
                 format_section_title=lambda sat: "%s" % sat.upper(),
                 format_tick_title=lambda ccs: "%s" % ccs,
-                format_skew_title=lambda tbs, qbs, ubs: "tbs=%s, qbs=%s, ubs=%s" % (tbs, qbs, ubs),
+                format_skew_title=lambda tbs, qbs, ubs: "bs=%s" % (tbs.split(',')[0]),
                 sort_section=lambda section_tuples: sorted(section_tuples, key=sat_tuple_key),
                 sort_tick=lambda tick_tuples: sorted(tick_tuples, reverse=True),
-                sort_skew=lambda skew_tuples: sorted(skew_tuples),
+                sort_skew=lambda skew_tuples: sorted(skew_tuples,
+                                                     key=lambda t: apply_si(t[0].split(',')[0])),
                 percentile_low=5,
                 percentile_high=95)
 
@@ -1191,10 +1251,11 @@ def analyze_opensand_conn_est(df: pd.DataFrame, out_dir: str):
                 "conn_est_%s%s_a%d" % (protocol, "_pep" if pep else "", attenuation),
                 format_section_title=lambda sat: "%s" % sat.upper(),
                 format_tick_title=lambda ccs: "%s" % ccs,
-                format_skew_title=lambda tbs, qbs, ubs: "tbs=%s, qbs=%s, ubs=%s" % (tbs, qbs, ubs),
+                format_skew_title=lambda tbs, qbs, ubs: "bs=%s" % (tbs.split(',')[0]),
                 sort_section=lambda section_tuples: sorted(section_tuples, key=sat_tuple_key),
                 sort_tick=lambda tick_tuples: sorted(tick_tuples, reverse=True),
-                sort_skew=lambda skew_tuples: sorted(skew_tuples),
+                sort_skew=lambda skew_tuples: sorted(skew_tuples,
+                                                     key=lambda t: apply_si(t[0].split(',')[0])),
                 percentile_low=5,
                 percentile_high=95)
 
@@ -1340,7 +1401,7 @@ def __analyze_all_rtt(parsed_results: dict, measure_type: MeasureType, out_dir: 
 
 
 def __analyze_all_timing(parsed_results: dict, measure_type: MeasureType, out_dir: str) -> None:
-    logger.info("Analyzing time to first byte")
+    logger.info("Analyzing time to first byte and connection establishment")
 
     df_con_times = pd.concat([
         parsed_results['quic_timing'],
@@ -1348,13 +1409,9 @@ def __analyze_all_timing(parsed_results: dict, measure_type: MeasureType, out_di
     ], axis=0, ignore_index=True)
     if measure_type == MeasureType.NETEM:
         analyze_netem_ttfb(df_con_times, out_dir)
-    elif measure_type == MeasureType.OPENSAND:
-        analyze_opensand_ttfb(df_con_times, out_dir)
-
-    logger.info("Analyzing connection establishment")
-    if measure_type == MeasureType.NETEM:
         analyze_netem_conn_est(df_con_times, out_dir)
     elif measure_type == MeasureType.OPENSAND:
+        analyze_opensand_ttfb(df_con_times, out_dir)
         analyze_opensand_conn_est(df_con_times, out_dir)
 
 
