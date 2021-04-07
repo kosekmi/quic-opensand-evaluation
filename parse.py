@@ -272,7 +272,7 @@ def __parse_quic_client_from_scenario(in_dir: str, scenario_name: str, pep: bool
     :return: A dataframe containing the parsed results of the specified scenario.
     """
 
-    logger.debug("Parsing quic%s client files in %s", "(pep)" if pep else "", scenario_name)
+    logger.debug("Parsing quic%s client files in %s", " (pep)" if pep else "", scenario_name)
     df = pd.DataFrame(columns=['run', 'second', 'bps', 'bytes', 'packets_received'])
 
     for file_name in os.listdir(os.path.join(in_dir, scenario_name)):
@@ -356,7 +356,7 @@ def __parse_quic_server_from_scenario(in_dir: str, scenario_name: str, pep: bool
     :return: A dataframe containing the parsed results of the specified scenario.
     """
 
-    logger.debug("Parsing quic%s server files in %s", "(pep)" if pep else "", scenario_name)
+    logger.debug("Parsing quic%s server files in %s", " (pep)" if pep else "", scenario_name)
     df = pd.DataFrame(columns=['run', 'second', 'cwnd', 'packets_sent', 'packets_lost'])
 
     for file_name in os.listdir(os.path.join(in_dir, scenario_name)):
@@ -410,15 +410,10 @@ def parse_quic_timing(in_dir: str, out_dir: str, scenarios: Dict[str, Dict], con
     """
 
     logger.info("Parsing quic timing results")
-    df_quic_timing = pd.DataFrame(columns=[*config_cols, 'run', 'con_est', 'ttfb'])
 
-    for folder, config in scenarios.items():
-        for pep in (False, True):
-            df = __parse_quic_timing_from_scenario(in_dir, folder, pep=pep)
-            if df is not None:
-                df_quic_timing = extend_df(df_quic_timing, df, protocol='quic', pep=pep, **config)
-            else:
-                logger.warning("No data quic%s timing data in %s", " (pep)" if pep else "", folder)
+    df_cols = [*config_cols, 'run', 'con_est', 'ttfb']
+    df_quic_timing = __parse_slice(__parse_quic_timing_from_scenario, in_dir, [*scenarios.items()],
+                                   df_cols, 'quic', 'timing')
 
     logger.debug("Fixing quic timing data types")
     df_quic_timing = fix_dtypes(df_quic_timing)
@@ -440,7 +435,7 @@ def __parse_quic_timing_from_scenario(in_dir: str, scenario_name: str, pep: bool
     :return: A dataframe containing the parsed results of the specified scenario.
     """
 
-    logger.debug("Parsing quic%s timing files in %s", "(pep)" if pep else "", scenario_name)
+    logger.debug("Parsing quic%s timing files in %s", " (pep)" if pep else "", scenario_name)
     df = pd.DataFrame(columns=['run', 'con_est', 'ttfb'])
 
     for file_name in os.listdir(os.path.join(in_dir, scenario_name)):
@@ -527,7 +522,7 @@ def __parse_tcp_client_from_scenario(in_dir: str, scenario_name: str, pep: bool 
     :return: A dataframe containing the parsed results of the specified scenario.
     """
 
-    logger.debug("Parsing tcp%s client files in %s", "(pep)" if pep else "", scenario_name)
+    logger.debug("Parsing tcp%s client files in %s", " (pep)" if pep else "", scenario_name)
     df = pd.DataFrame(columns=['run', 'second', 'bps', 'bytes', 'omitted'])
 
     for file_name in os.listdir(os.path.join(in_dir, scenario_name)):
@@ -586,10 +581,10 @@ def parse_tcp_server(in_dir: str, out_dir: str, scenarios: Dict[str, Dict], conf
 
     df_cols = [*config_cols, 'run', 'second', 'cwnd', 'bps', 'bytes', 'packets_lost', 'rtt', 'omitted']
     if multi_process:
-        df_tcp_server = __mp_parse_slices(4, __parse_tcp_client_from_scenario, in_dir, scenarios,
+        df_tcp_server = __mp_parse_slices(4, __parse_tcp_server_from_scenario, in_dir, scenarios,
                                           df_cols, 'tcp', 'server')
     else:
-        df_tcp_server = __parse_slice(__parse_tcp_client_from_scenario, in_dir, [*scenarios.items()],
+        df_tcp_server = __parse_slice(__parse_tcp_server_from_scenario, in_dir, [*scenarios.items()],
                                       df_cols, 'tcp', 'server')
 
     logger.debug("Fixing tcp server data types")
@@ -612,7 +607,7 @@ def __parse_tcp_server_from_scenario(in_dir: str, scenario_name: str, pep: bool 
     :return: A dataframe containing the parsed results of the specified scenario.
     """
 
-    logger.debug("Parsing tcp%s server files in %s", "(pep)" if pep else "", scenario_name)
+    logger.debug("Parsing tcp%s server files in %s", " (pep)" if pep else "", scenario_name)
     df = pd.DataFrame(columns=['run', 'second', 'cwnd', 'bps', 'bytes', 'packets_lost', 'rtt', 'omitted'])
 
     for file_name in os.listdir(os.path.join(in_dir, scenario_name)):
@@ -671,15 +666,10 @@ def parse_tcp_timing(in_dir: str, out_dir: str, scenarios: Dict[str, Dict], conf
     """
 
     logger.info("Parsing tcp timing results")
-    df_tcp_timing = pd.DataFrame(columns=[*config_cols, 'run', 'con_est', 'ttfb'])
 
-    for folder, config in scenarios.items():
-        for pep in (False, True):
-            df = __parse_tcp_timing_from_scenario(in_dir, folder, pep=pep)
-            if df is not None:
-                df_tcp_timing = extend_df(df_tcp_timing, df, protocol='tcp', pep=pep, **config)
-            else:
-                logger.warning("No data tcp%s timing data in %s", " (pep)" if pep else "", folder)
+    df_cols = [*config_cols, 'run', 'con_est', 'ttfb']
+    df_tcp_timing = __parse_slice(__parse_tcp_timing_from_scenario, in_dir, [*scenarios.items()],
+                                  df_cols, 'tcp', 'timing')
 
     logger.debug("Fixing tcp timing data types")
     df_tcp_timing = fix_dtypes(df_tcp_timing)
@@ -701,7 +691,7 @@ def __parse_tcp_timing_from_scenario(in_dir: str, scenario_name: str, pep: bool 
     :return: A dataframe containing the parsed results of the specified scenario.
     """
 
-    logger.debug("Parsing tcp%s timing files in %s", "(pep)" if pep else "", scenario_name)
+    logger.debug("Parsing tcp%s timing files in %s", " (pep)" if pep else "", scenario_name)
     df = pd.DataFrame(columns=['run', 'con_est', 'ttfb'])
 
     for file_name in os.listdir(os.path.join(in_dir, scenario_name)):

@@ -307,7 +307,7 @@ def plot_time_series(df: pd.DataFrame, out_dir: str, analysis_name: str, file_co
                             ylabel='"%s"' % y_label,
                             pointsize='0.5',
                             xrange=None,
-                            yrange='[0:*]',
+                            yrange='[0:]',
                             term="pdf size %dcm, %dcm" % GRAPH_PLOT_SIZE_CM,
                             out='"%s.pdf"' % os.path.join(out_dir, GRAPH_DIR, file_base))
         if x_range is not None:
@@ -384,7 +384,7 @@ def plot_time_series_matrix(df: pd.DataFrame, out_dir: str, analysis_name: str, 
         key_data = set()
 
         # Generate subfigures
-        y_max = np.ceil(df[y_col].quantile(.99) / y_div)
+        y_max = max(1, np.ceil(df[y_col].quantile(.99) / y_div))
         for matrix_y_idx, matrix_y_tuple in enumerate(my_unique):
             for matrix_x_idx, matrix_x_tuple in enumerate(mx_unique):
                 print_subplot_tuple = sprint_tuple([*file_cols, *matrix_x_cols, *matrix_y_cols],
@@ -1077,7 +1077,7 @@ def analyze_opensand_cwnd_evo_bs_matrix(df: pd.DataFrame, out_dir: str):
 def analyze_opensand_packet_loss(df: pd.DataFrame, out_dir: str):
     for x_bucket in {GRAPH_X_BUCKET, 1}:
         plot_time_series(df, out_dir,
-                         analysis_name='OPENSAND_PACKET_LOSS_%gS',
+                         analysis_name='OPENSAND_PACKET_LOSS_%gS' % x_bucket,
                          file_cols=['sat', 'attenuation', 'ccs', 'tbs', 'qbs', 'ubs'],
                          data_cols=['protocol', 'pep'],
                          x_col='second',
@@ -1223,7 +1223,7 @@ def analyze_stats(df_stats, df_runs, out_dir="."):
     y_max_base = 10 ** np.floor(np.log10(y_max))
     y_max = max(1, int(np.ceil(y_max / y_max_base) * y_max_base))
 
-    g = gnuplot.Gnuplot(log=True,
+    g = gnuplot.Gnuplot(log=DEBUG_GNUPLOT,
                         title='"RAM Usage"',
                         key='off',
                         xlabel='"Time"',
@@ -1246,7 +1246,7 @@ def analyze_stats(df_stats, df_runs, out_dir="."):
     y_max_base = 10 ** np.floor(np.log10(y_max))
     y_max = max(1, int(np.ceil(y_max / y_max_base) * y_max_base))
 
-    g = gnuplot.Gnuplot(log=True,
+    g = gnuplot.Gnuplot(log=DEBUG_GNUPLOT,
                         title='"CPU Load"',
                         key='off',
                         xlabel='"Time"',
