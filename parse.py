@@ -309,7 +309,7 @@ def __parse_quic_client_from_scenario(in_dir: str, scenario_name: str, pep: bool
         logger.warning("%s: Dropped %d lines with NaN values", scenario_name, with_na - without_na)
 
     if df.empty:
-        logger.warning("%s: No quic client data found", scenario_name)
+        logger.warning("%s: No quic%s client data found", scenario_name, " (pep)" if pep else "")
 
     return df
 
@@ -392,7 +392,7 @@ def __parse_quic_server_from_scenario(in_dir: str, scenario_name: str, pep: bool
         logger.warning("%s: Dropped %d lines with NaN values", scenario_name, with_na - without_na)
 
     if df.empty:
-        logger.warning("%s: No quic server data found", scenario_name)
+        logger.warning("%s: No quic%s server data found", scenario_name, " (pep)" if pep else "")
 
     return df
 
@@ -480,7 +480,7 @@ def __parse_quic_timing_from_scenario(in_dir: str, scenario_name: str, pep: bool
         logger.warning("%s: Dropped %d lines with NaN values", scenario_name, with_na - without_na)
 
     if df.empty:
-        logger.warning("%s: No QUIC ttfb data found", scenario_name)
+        logger.warning("%s: No quic%s timing data found", scenario_name, " (pep)" if pep else "")
 
     return df
 
@@ -565,7 +565,7 @@ def __parse_tcp_client_from_scenario(in_dir: str, scenario_name: str, pep: bool 
         logger.warning("%s: Dropped %d lines with NaN values", scenario_name, with_na - without_na)
 
     if df.empty:
-        logger.warning("%s: No tcp client data found", scenario_name)
+        logger.warning("%s: No tcp%s client data found", scenario_name, " (pep)" if pep else "")
 
     return df
 
@@ -653,7 +653,7 @@ def __parse_tcp_server_from_scenario(in_dir: str, scenario_name: str, pep: bool 
         logger.warning("%s: Dropped %d lines with NaN values", scenario_name, with_na - without_na)
 
     if df.empty:
-        logger.warning("%s: No tcp server data found", scenario_name)
+        logger.warning("%s: No tcp%s server data found", scenario_name, " (pep)" if pep else "")
 
     return df
 
@@ -741,7 +741,7 @@ def __parse_tcp_timing_from_scenario(in_dir: str, scenario_name: str, pep: bool 
         logger.warning("%s: Dropped %d lines with NaN values", scenario_name, with_na - without_na)
 
     if df.empty:
-        logger.warning("%s: No tcp timing data found", scenario_name)
+        logger.warning("%s: No tcp%s timing data found", scenario_name, " (pep)" if pep else "")
 
     return df
 
