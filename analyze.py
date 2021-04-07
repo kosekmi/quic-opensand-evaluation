@@ -22,6 +22,8 @@ VALUE_PLOT_SIZE_CM = (12, 8)
 MATRIX_KEY_SIZE = 0.12
 MATRIX_SIZE_SKEW = 0.7
 
+DEBUG_GNUPLOT = False
+
 global logger
 try:
     logger
@@ -298,7 +300,7 @@ def plot_time_series(df: pd.DataFrame, out_dir: str, analysis_name: str, file_co
         plot_df, plot_cmds, data_tuples = prepared_data
         file_base = format_file_base(*file_tuple)
 
-        g = gnuplot.Gnuplot(log=True,
+        g = gnuplot.Gnuplot(log=DEBUG_GNUPLOT,
                             title='"%s"' % format_file_title(*file_tuple),
                             key='outside right center vertical samplen 2',
                             xlabel='"%s"' % x_label,
@@ -577,7 +579,7 @@ def plot_timing(df: pd.DataFrame, out_dir: str, analysis_name: str, file_cols: L
 
         file_base = format_file_base(*file_tuple)
 
-        g = gnuplot.Gnuplot(log=True,
+        g = gnuplot.Gnuplot(log=DEBUG_GNUPLOT,
                             title='"%s"' % (format_file_title(*file_tuple)),
                             key='top left samplen 2',
                             xlabel='"%s"' % x_label,
