@@ -276,7 +276,7 @@ def plot_time_series(df: pd.DataFrame, out_dir: str, analysis_name: str, file_co
 
     for file_tuple in unique_cross_product(df, *file_cols):
         print_file_tuple = sprint_tuple(file_cols, file_tuple)
-        logger.debug("Generating %s %s", analysis_name, print_file_tuple)
+        logger.info("Generating %s %s", analysis_name, print_file_tuple)
 
         prepared_data = prepare_time_series_graph_data(df,
                                                        x_col=x_col,
@@ -372,7 +372,7 @@ def plot_time_series_matrix(df: pd.DataFrame, out_dir: str, analysis_name: str, 
 
     for file_tuple in unique_cross_product(df, *file_cols):
         print_file_tuple = sprint_tuple(file_cols, file_tuple)
-        logger.debug("Generating %s matrix %s", analysis_name, print_file_tuple)
+        logger.info("Generating %s matrix %s", analysis_name, print_file_tuple)
 
         mx_unique = list(sort_matrix_x(unique_cross_product(df, *matrix_x_cols)))
         my_unique = list(sort_matrix_y(unique_cross_product(df, *matrix_y_cols)))
@@ -525,8 +525,8 @@ def plot_timing(df: pd.DataFrame, out_dir: str, analysis_name: str, file_cols: L
 
     # Generate graphs
     for file_tuple in unique_cross_product(df, *file_cols):
-        print_file_tuple = ', '.join(["%s=%s" % (col, str(val)) for col, val in zip(file_cols, file_tuple)])
-        logger.debug("Generating %s timing %s", analysis_name, print_file_tuple)
+        print_file_tuple = sprint_tuple(file_cols, file_tuple)
+        logger.info("Generating %s timing %s", analysis_name, print_file_tuple)
 
         # Filter data relevant for graph
         gdf = filter_graph_data(df, "", None, file_cols, file_tuple)
@@ -1153,13 +1153,13 @@ def analyze_opensand_rtt(df: pd.DataFrame, out_dir: str):
 
 def analyze_opensand_ttfb(df: pd.DataFrame, out_dir: str):
     plot_timing(df, out_dir,
-                analysis_name='OPENSAND_CONN_EST',
+                analysis_name='OPENSAND_TTFB',
                 file_cols=['protocol', 'pep', 'attenuation'],
                 section_cols=['sat'],
                 tick_cols=['ccs'],
                 skew_cols=['tbs', 'qbs', 'ubs'],
                 y_col='ttfb',
-                x_label="Satellite type, attenuation (dB)",
+                x_label="Satellite type, congestion control",
                 y_label="Time (ms)",
                 format_file_title=lambda protocol, pep, attenuation:
                 "Time to First Byte - %s%s - %ddB" % (protocol.upper(), " (PEP)" if pep else "", attenuation),
