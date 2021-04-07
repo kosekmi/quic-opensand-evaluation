@@ -204,7 +204,7 @@ def prepare_time_series_graph_data(df: pd.DataFrame, x_col: str, y_col: str, x_r
             except KeyError:
                 # Combination in data_tuple does not exist
                 continue
-            if line_df.empty:
+            if line_df.empty or line_df.isnull().values.all():
                 # Combination in data_tuple has no data
                 continue
             gdata.append((line_df, data_tuple))
