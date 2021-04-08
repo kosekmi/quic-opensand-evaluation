@@ -1071,7 +1071,7 @@ def analyze_opensand_cwnd_evo_matrix(df: pd.DataFrame, out_dir: str):
                                 format_data_title=lambda protocol, pep, tbs, qbs, ubs:
                                 "%s%s bs=%s" % (protocol.upper(), " (PEP)" if pep else "", tbs.split(',')[0]),
                                 format_subplot_title=lambda sat, ccs:
-                                "Goodput Evolution - %s - CC:%s" % (sat, ccs),
+                                "Congestion Window Evolution - %s - CC:%s" % (sat, ccs),
                                 format_file_title=lambda attenuation:
                                 "Congestion Window Evolution - %ddB" % attenuation,
                                 format_file_base=lambda attenuation:
@@ -1100,7 +1100,8 @@ def analyze_opensand_cwnd_evo_cc_matrix(df: pd.DataFrame, out_dir: str):
                                 format_data_title=lambda ccs:
                                 "CC: %s" % ccs,
                                 format_subplot_title=lambda sat, protocol, pep:
-                                "Goodput Evolution - %s - %s%s" % (sat, protocol.upper(), " (PEP)" if pep else ""),
+                                "Congestion Window Evolution - %s - %s%s" %
+                                (sat, protocol.upper(), " (PEP)" if pep else ""),
                                 format_file_title=lambda attenuation:
                                 "Congestion Window Evolution - %ddB" % attenuation,
                                 format_file_base=lambda attenuation:
@@ -1128,7 +1129,8 @@ def analyze_opensand_cwnd_evo_bs_matrix(df: pd.DataFrame, out_dir: str):
                                 line_color_indices=[0],
                                 format_data_title=lambda tbs, qbs, ubs: "bs=%s" % (tbs.split(',')[0]),
                                 format_subplot_title=lambda sat, protocol, pep:
-                                "Goodput Evolution - %s - %s%s" % (sat, protocol.upper(), " (PEP)" if pep else ""),
+                                "Congestion Window Evolution - %s - %s%s" %
+                                (sat, protocol.upper(), " (PEP)" if pep else ""),
                                 format_file_title=lambda attenuation:
                                 "Congestion Window Evolution - %ddB" % attenuation,
                                 format_file_base=lambda attenuation:
@@ -1183,7 +1185,7 @@ def analyze_opensand_packet_loss_matrix(df: pd.DataFrame, out_dir: str):
                                 format_data_title=lambda protocol, pep, tbs, qbs, ubs:
                                 "%s%s" % (protocol.upper(), " (PEP)" if pep else ""),
                                 format_subplot_title=lambda sat, ccs:
-                                "Goodput Evolution - %s - CC:%s" % (sat, ccs),
+                                "Packet Loss - %s - CC:%s" % (sat, ccs),
                                 format_file_title=lambda attenuation:
                                 "Packet Loss - %ddB" % attenuation,
                                 format_file_base=lambda attenuation:
