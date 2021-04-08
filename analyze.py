@@ -202,7 +202,8 @@ def prepare_time_series_graph_data(df: pd.DataFrame, x_col: str, y_col: str, x_r
                                    x_bucket: Optional[float], y_div: float, extra_title_col: str, file_cols: List[str],
                                    file_tuple: FileTuple, data_cols: List[str], point_map: PointMap, line_map: LineMap,
                                    point_type_indices: List[int], line_color_indices: List[int],
-                                   format_data_title: Callable[[DataTuple], str]
+                                   format_data_title: Callable[[DataTuple], str],
+                                   data_tuple_key_transform: Callable[[DataTuple], any] = lambda x: x
                                    ) -> Optional[Tuple[pd.DataFrame, List[str], List[tuple]]]:
     """
     Prepare data to be used in a time series graph.
@@ -222,6 +223,7 @@ def prepare_time_series_graph_data(df: pd.DataFrame, x_col: str, y_col: str, x_r
     :param point_type_indices: Indices of file_cols used to determine point type
     :param line_color_indices: Indices of file_cols used to determine line color
     :param format_data_title: Function to format the title of a data line, receives a data_tuple
+    :param data_tuple_key_transform: Function to transform a data tuple as key for the sort method
     :return: A tuple consisting of a dataframe that holds all data for the graph, a list of plot commands and a list of
     data_tuples that will be plotted in the graph. If at some point there are no data left and therefore plotting the
     graph would be useless, None is returned.
@@ -261,9 +263,9 @@ def prepare_time_series_graph_data(df: pd.DataFrame, x_col: str, y_col: str, x_r
                 # Combination in data_tuple has no data
                 continue
             gdata.append((line_df, data_tuple))
-    gdata = sorted(gdata, key=lambda x: x[1:])
     if len(gdata) == 0:
         return None
+    gdata = sorted(gdata, key=lambda x: data_tuple_key_transform(x[1][1:]))
 
     # Merge line data into single df
     plot_df = pd.concat([x[0] for x in gdata], axis=1)
@@ -379,6 +381,7 @@ def plot_time_series_matrix(df: pd.DataFrame, out_dir: str, analysis_name: str, 
                             format_subplot_title: Callable[[any, any], str],
                             format_file_title: Callable[[FileTuple], str],
                             format_file_base: Callable[[FileTuple], str],
+                            data_sort_key: Callable[[DataTuple], any] = lambda x: x,
                             sort_matrix_x: Callable[[Iterable], Iterable] = lambda x: sorted(x),
                             sort_matrix_y: Callable[[Iterable], Iterable] = lambda y: sorted(y),
                             extra_title_col: Optional[str] = None) -> None:
@@ -406,6 +409,7 @@ def plot_time_series_matrix(df: pd.DataFrame, out_dir: str, analysis_name: str, 
     :param format_subplot_title: Function to format the title of a subplot, receives a tuple with the values of matrix_x_cols and matrix_y_cols
     :param format_file_title: Function to format the title of a graph, receives a file_tuple (file_cols values)
     :param format_file_base: Function to format the base name of a graph file, receives a file_tuple (file_cols values)
+    :param data_sort_key: Function to transform a data tuple to a key to sort the data by
     :param sort_matrix_x: Function to sort values of the matrix_x_cols, graphs will be arranged accordingly
     :param sort_matrix_y: Function to sort values of the matrix_y_cols, graphs will be arranged accordingly
     :param extra_title_col: Name of the column that holds a string prefix for the data title
@@ -455,7 +459,8 @@ def plot_time_series_matrix(df: pd.DataFrame, out_dir: str, analysis_name: str, 
                                                                line_map=line_map,
                                                                point_type_indices=point_type_indices,
                                                                line_color_indices=line_color_indices,
-                                                               format_data_title=format_data_title)
+                                                               format_data_title=format_data_title,
+                                                               data_tuple_key_transform=data_sort_key)
                 if prepared_data is None:
                     logger.debug("No data for %s %s", analysis_name, print_subplot_tuple)
                     continue
@@ -493,7 +498,7 @@ def plot_time_series_matrix(df: pd.DataFrame, out_dir: str, analysis_name: str, 
                 data_tuple[0] if len(data_tuple[0]) == 0 else ("%s " % data_tuple[0]),
                 format_data_title(*data_tuple[1:])
             )
-            for data_tuple in sorted(key_data)
+            for data_tuple in sorted(key_data, key=lambda dt: data_sort_key(dt[1:]))
         ]
         subfigures.append(gnuplot.make_plot(
             *key_cmds,
@@ -953,7 +958,7 @@ def analyze_opensand_goodput_matrix(df: pd.DataFrame, out_dir: str):
                                 point_type_indices=[2, 3, 4],
                                 line_color_indices=[0, 1],
                                 format_data_title=lambda protocol, pep, tbs, qbs, ubs:
-                                "%s%s" % (protocol.upper(), " (PEP)" if pep else ""),
+                                "%s%s bs=%s" % (protocol.upper(), " (PEP)" if pep else "", tbs.split(',')[0]),
                                 format_subplot_title=lambda sat, ccs:
                                 "Goodput Evolution - %s - CC:%s" % (sat, ccs),
                                 format_file_title=lambda attenuation:
@@ -1010,14 +1015,14 @@ def analyze_opensand_goodput_bs_matrix(df: pd.DataFrame, out_dir: str):
                                 y_label="Goodput (kbps)",
                                 point_type_indices=[],
                                 line_color_indices=[0],
-                                format_data_title=lambda tbs, qbs, ubs:
-                                "tbs: %s, qbs: %s, ubs: %s" % (tbs, qbs, ubs),
+                                format_data_title=lambda tbs, qbs, ubs: "bs=%s" % (tbs.split(',')[0]),
                                 format_subplot_title=lambda sat, protocol, pep:
                                 "Goodput Evolution - %s - %s%s" % (sat, protocol.upper(), " (PEP)" if pep else ""),
                                 format_file_title=lambda attenuation:
                                 "Goodput Evolution - %ddB" % attenuation,
                                 format_file_base=lambda attenuation:
                                 "matrix_goodput_bs_%gs_a%d" % (x_bucket, attenuation),
+                                data_sort_key=lambda dt: apply_si(dt[0].split(',')[0]),
                                 sort_matrix_x=lambda xvals: sorted(xvals, key=lambda xt: sat_key(xt[0])),
                                 sort_matrix_y=lambda yvals: sorted(yvals, reverse=True))
 
@@ -1064,7 +1069,7 @@ def analyze_opensand_cwnd_evo_matrix(df: pd.DataFrame, out_dir: str):
                                 point_type_indices=[2, 3, 4],
                                 line_color_indices=[0, 1],
                                 format_data_title=lambda protocol, pep, tbs, qbs, ubs:
-                                "%s%s" % (protocol.upper(), " (PEP)" if pep else ""),
+                                "%s%s bs=%s" % (protocol.upper(), " (PEP)" if pep else "", tbs.split(',')[0]),
                                 format_subplot_title=lambda sat, ccs:
                                 "Goodput Evolution - %s - CC:%s" % (sat, ccs),
                                 format_file_title=lambda attenuation:
@@ -1121,14 +1126,14 @@ def analyze_opensand_cwnd_evo_bs_matrix(df: pd.DataFrame, out_dir: str):
                                 y_label="Congestion window (KB)",
                                 point_type_indices=[],
                                 line_color_indices=[0],
-                                format_data_title=lambda tbs, qbs, ubs:
-                                "tbs: %s, qbs: %s, ubs: %s" % (tbs, qbs, ubs),
+                                format_data_title=lambda tbs, qbs, ubs: "bs=%s" % (tbs.split(',')[0]),
                                 format_subplot_title=lambda sat, protocol, pep:
                                 "Goodput Evolution - %s - %s%s" % (sat, protocol.upper(), " (PEP)" if pep else ""),
                                 format_file_title=lambda attenuation:
                                 "Congestion Window Evolution - %ddB" % attenuation,
                                 format_file_base=lambda attenuation:
                                 "matrix_cwnd_evo_bs_%gs_a%d" % (x_bucket, attenuation),
+                                data_sort_key=lambda dt: apply_si(dt[0].split(',')[0]),
                                 sort_matrix_x=lambda xvals: sorted(xvals, key=lambda xt: sat_key(xt[0])),
                                 sort_matrix_y=lambda yvals: sorted(yvals, reverse=True))
 
