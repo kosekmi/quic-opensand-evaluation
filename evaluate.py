@@ -17,8 +17,8 @@ def usage(name):
         "-d, --auto-detect   Try to automatically configure analysis from input\n"
         "-h, --help          Print this help message\n"
         "-i, --input=<dir>   Input directory to read the measurement results from\n"
+        "-m, --multi-process Use multiple processes while parsing and analyzing results\n"
         "-o, --output=<dir>  Output directory to put the parsed results and graphs to\n"
-        "-m, --multi-process Use multiple processes while parsing results\n"
         "-p, --parse         Parse only and skip analysis"
         "" % name
     )

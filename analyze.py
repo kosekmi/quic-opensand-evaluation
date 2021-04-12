@@ -13,6 +13,10 @@ from common import MeasureType, GRAPH_DIR, DATA_DIR
 LINE_COLORS = ['black', 'red', 'dark-violet', 'blue', 'dark-green', 'dark-orange', 'gold', 'cyan', 'spring-green',
                'orange', 'greenyellow', 'violet', 'royalblue', 'dark-pink', 'pink', 'seagreen']
 POINT_TYPES = [2, 4, 8, 10, 6, 12, 9, 11, 13, 15, 17, 20, 22, 33, 34, 50]
+SI = {
+    'K': 2 ** 10, 'M': 2 ** 20, 'G': 2 ** 30, 'T': 2 ** 40, 'P': 2 ** 50, 'E': 2 ** 60,
+    'k': 10 ** 3, 'm': 10 ** 6, 'g': 10 ** 9, 't': 10 ** 12, 'p': 10 ** 15, 'e': 10 ** 18,
+}
 
 GRAPH_PLOT_SIZE_CM = (44, 8)
 GRAPH_PLOT_SECONDS = 30
@@ -86,11 +90,21 @@ def sat_key(sat: str):
         return -1
 
 
+def sat_tuple_key(section_tuple: Tuple[any, ...]):
+    """
+    Wrapper for sat_key receiving a tuple where the first element is the sat
+    :param section_tuple: A tuple with the sat value on the first entry
+    :return:
+    """
+    return sat_key(section_tuple[0])
+
+
 def apply_si(val: str) -> int:
-    SI = {
-        'K': 2 ** 10, 'M': 2 ** 20, 'G': 2 ** 30, 'T': 2 ** 40, 'P': 2 ** 50, 'E': 2 ** 60,
-        'k': 10 ** 3, 'm': 10 ** 6, 'g': 10 ** 9, 't': 10 ** 12, 'p': 10 ** 15, 'e': 10 ** 18,
-    }
+    """
+    Parse an integer from a string with an optional SI suffix.
+    :param val: The string to parse the integer from.
+    :return: An integer with the si suffix applied.
+    """
 
     if val.isdecimal():
         return int(val)
@@ -98,11 +112,12 @@ def apply_si(val: str) -> int:
         return int(val[:-1]) * SI.get(val[-1:], -1)
 
 
-def sat_tuple_key(section_tuple: Tuple[any, ...]):
-    return sat_key(section_tuple[0])
-
-
 def create_output_dirs(out_dir: str):
+    """
+    Creates output directories (GRAPH_DIR and DATA_DIR) of the analysis if the don't already exist.
+    :param out_dir: The output folder set via the command line
+    :return:
+    """
     graph_dir = os.path.join(out_dir, GRAPH_DIR)
     data_dir = os.path.join(out_dir, DATA_DIR)
 
@@ -113,10 +128,23 @@ def create_output_dirs(out_dir: str):
 
 
 def sprint_tuple(col_names: List[str], col_values: Tuple[any, ...]) -> str:
+    """
+    Format a tuple into a printable string.
+    :param col_names: Names of the columns in the tuple
+    :param col_values: Tuple values
+    :return: A string with all column names and tuple values
+    """
     return ', '.join(["%s=%s" % (col, str(val)) for col, val in zip(col_names, col_values)])
 
 
-def unique_cross_product(df: pd.DataFrame, *col_names: str) -> Generator[Tuple[any, ...], None, None]:
+def unique_cartesian_product(df: pd.DataFrame, *col_names: str) -> Generator[Tuple[any, ...], None, None]:
+    """
+    Generates the cartesian product of the unique values for each column in the dataframe.
+    :param df: The dataframe to read the unique values per column from.
+    :param col_names: The names of the columns to use for the cartesian product.
+    :return: A generator for value tuples based on the specified columns in the given dataframe.
+    """
+
     if len(col_names) < 1:
         yield tuple()
         return
@@ -135,10 +163,10 @@ def unique_cross_product(df: pd.DataFrame, *col_names: str) -> Generator[Tuple[a
                 vids[cid] = 0
 
 
-def not_nan_tuples(df: pd.DataFrame, data_cols: List[str], nan_cols: List[str]) -> Generator[
-    Tuple[any, ...], None, None]:
+def not_nan_tuples(df: pd.DataFrame, data_cols: List[str], nan_cols: List[str]) \
+        -> Generator[Tuple[any, ...], None, None]:
     """
-    Creates a unique cross product of the data cols and filters those tuples out where all values in the nan_cols are
+    Creates a unique cartesian product of the data cols and filters those tuples out where all values in the nan_cols are
     NaN.
     :param df: The dataframe to create the cartesian product from and which to use for the NaN check
     :param data_cols: The names of the columns to create the unique cartesian product from
@@ -146,7 +174,7 @@ def not_nan_tuples(df: pd.DataFrame, data_cols: List[str], nan_cols: List[str]) 
     :return: The filtered unique cartesian product.
     """
 
-    for data_tuple in unique_cross_product(df, *data_cols):
+    for data_tuple in unique_cartesian_product(df, *data_cols):
         data_filter = True
         for col_name, col_val in zip(data_cols, data_tuple):
             data_filter &= df[col_name] == col_val
@@ -253,7 +281,7 @@ def prepare_time_series_graph_data(df: pd.DataFrame, x_col: str, y_col: str, x_r
     # Calculate data lines
     gdata = []
     if not gdf.empty:
-        for data_tuple in unique_cross_product(df, extra_title_col, *data_cols):
+        for data_tuple in unique_cartesian_product(df, extra_title_col, *data_cols):
             try:
                 line_df = gdf.loc[data_tuple, y_col]
             except KeyError:
@@ -327,7 +355,7 @@ def plot_time_series(df: pd.DataFrame, out_dir: str, analysis_name: str, file_co
         extra_title_col = 'default_extra_title'
         df[extra_title_col] = ""
 
-    for file_tuple in unique_cross_product(df, *file_cols):
+    for file_tuple in unique_cartesian_product(df, *file_cols):
         print_file_tuple = sprint_tuple(file_cols, file_tuple)
         logger.info("Generating %s %s", analysis_name, print_file_tuple)
 
@@ -425,12 +453,12 @@ def plot_time_series_matrix(df: pd.DataFrame, out_dir: str, analysis_name: str, 
         extra_title_col = 'default_extra_title'
         df[extra_title_col] = ""
 
-    for file_tuple in unique_cross_product(df, *file_cols):
+    for file_tuple in unique_cartesian_product(df, *file_cols):
         print_file_tuple = sprint_tuple(file_cols, file_tuple)
         logger.info("Generating %s matrix %s", analysis_name, print_file_tuple)
 
-        mx_unique = list(sort_matrix_x(unique_cross_product(df, *matrix_x_cols)))
-        my_unique = list(sort_matrix_y(unique_cross_product(df, *matrix_y_cols)))
+        mx_unique = list(sort_matrix_x(unique_cartesian_product(df, *matrix_x_cols)))
+        my_unique = list(sort_matrix_y(unique_cartesian_product(df, *matrix_y_cols)))
         mx_cnt = float(max(1, len(mx_unique)))
         my_cnt = float(max(1, len(my_unique)))
         sub_size = "%f, %f" % ((1.0 - MATRIX_KEY_SIZE) / mx_cnt, 1.0 / my_cnt)
@@ -580,7 +608,7 @@ def plot_timing(df: pd.DataFrame, out_dir: str, analysis_name: str, file_cols: L
     line_map: LineMap = {}
 
     # Generate graphs
-    for file_tuple in unique_cross_product(df, *file_cols):
+    for file_tuple in unique_cartesian_product(df, *file_cols):
         print_file_tuple = sprint_tuple(file_cols, file_tuple)
         logger.info("Generating %s timing %s", analysis_name, print_file_tuple)
 

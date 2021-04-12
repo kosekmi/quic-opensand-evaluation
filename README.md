@@ -10,23 +10,27 @@ and analyze these data afterwards by generating plots with gnuplot.
 
 ## Usage
 
-Execute the `parse.py` script and specify input and output folder (can also be the same)
+Execute the `evaluate.py` script and specify input and output folder (can also be the same)
 ```bash
 parse.py -i <input_dir> -o <output_dir>
 ```
 
 ### Arguments
 
-- `-i <input_dir>` - Specify the directory to read the measurement data from
-- `-o <output_dir>` - Specify the directory to store the parse & analyze results in
-- `-p` - Parse only mode, parse the data and save the resulting dataframes, but don't analyze them
-- `-a` - Analyze only mode, read the saved dataframes from the input directory and analyze the data
+- `-a, --analyze` - Analyze only mode, read the saved dataframes from the input directory and analyze the data. Output
+  directory can be omitted, if it should be the same as input
+- `-d, --auto-detect` - Auto detect some analysis parameterf (e.g. measurement time) from the measurement data
+- `-d, --help` - Print a help message and exit
+- `-i, --input=<input_dir>` - Specify the directory to read the measurement data from
+- `-m, --multi-process` - Use multiple process to parse and analyze the results
+- `-o, --output=<output_dir>` - Specify the directory to store the parsed & analyzed results in
+- `-p, --parse` - Parse only mode, parse the data and save the resulting dataframes, but don't analyze them
 
 ## Combined Analysis
 
-To generate graphs from multiple independent measurements, use the `combined_analyze.py` script.
-But first use the `parse.py` script to parse the measurements individually, as the combined analysis
-relies on the raw parsed data.
+To generate graphs from multiple independent measurements, use the `combined_analyze.py` script. But first use
+the `evaluate.py` script in parse only mode to parse the measurements individually, as the combined analysis relies on
+the raw parsed data.
 ```bash
 combined_analyze.py -o <output_dir> <title1> <path1> <title2> <path2> [... <titleN> <pathN>]
 ```
