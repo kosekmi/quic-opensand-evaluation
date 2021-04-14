@@ -10,8 +10,8 @@ from pygnuplot import gnuplot
 
 from common import MeasureType, GRAPH_DIR, DATA_DIR
 
-LINE_COLORS = ['black', 'red', 'dark-violet', 'blue', 'dark-green', 'dark-orange', 'gold', 'cyan', 'spring-green',
-               'orange', 'greenyellow', 'violet', 'royalblue', 'dark-pink', 'pink', 'seagreen']
+LINE_COLORS = ['000000', 'FF0000', '9400D3', '0000FF', '006400', 'FF8C00', 'FFD700', '00FFFF', '00FF7F',
+               'FFA500', 'ADFF2F', 'EE82EE', '4169E1', 'FF1493', 'FFC0CB', '2E8B57']
 POINT_TYPES = [2, 4, 8, 10, 6, 12, 9, 11, 13, 15, 17, 20, 22, 33, 34, 50]
 SI = {
     'K': 2 ** 10, 'M': 2 ** 20, 'G': 2 ** 30, 'T': 2 ** 40, 'P': 2 ** 50, 'E': 2 ** 60,
@@ -73,7 +73,7 @@ def get_line_color(line_map: LineMap, val: any):
     if val not in line_map:
         idx = len(line_map)
         # Use default value if more line colors than specified are requested
-        line_map[val] = 'gray' if idx >= len(LINE_COLORS) else LINE_COLORS[idx]
+        line_map[val] = '7F7F7F' if idx >= len(LINE_COLORS) else LINE_COLORS[idx]
 
     return line_map[val]
 
@@ -231,7 +231,8 @@ def prepare_time_series_graph_data(df: pd.DataFrame, x_col: str, y_col: str, x_r
                                    file_tuple: FileTuple, data_cols: List[str], point_map: PointMap, line_map: LineMap,
                                    point_type_indices: List[int], line_color_indices: List[int],
                                    format_data_title: Callable[[DataTuple], str],
-                                   data_tuple_key_transform: Callable[[DataTuple], any] = lambda x: x
+                                   data_tuple_key_transform: Callable[[DataTuple], any] = lambda x: x,
+                                   plot_confidence_area: bool = False
                                    ) -> Optional[Tuple[pd.DataFrame, List[str], List[tuple]]]:
     """
     Prepare data to be used in a time series graph.
@@ -252,6 +253,7 @@ def prepare_time_series_graph_data(df: pd.DataFrame, x_col: str, y_col: str, x_r
     :param line_color_indices: Indices of file_cols used to determine line color
     :param format_data_title: Function to format the title of a data line, receives a data_tuple
     :param data_tuple_key_transform: Function to transform a data tuple as key for the sort method
+    :param plot_confidence_area: Whether to add the confidence area to the plot commands
     :return: A tuple consisting of a dataframe that holds all data for the graph, a list of plot commands and a list of
     data_tuples that will be plotted in the graph. If at some point there are no data left and therefore plotting the
     graph would be useless, None is returned.
@@ -276,14 +278,17 @@ def prepare_time_series_graph_data(df: pd.DataFrame, x_col: str, y_col: str, x_r
 
     # Calculate mean average per y_value (e.g. per second calculate mean average from each run)
     gdf = gdf[[extra_title_col, *data_cols, x_col, y_col]]
-    gdf = gdf.groupby([extra_title_col, *data_cols, x_col]).mean()
+    gdf = gdf.groupby([extra_title_col, *data_cols, x_col]).aggregate(
+        mean=pd.NamedAgg(y_col, np.mean),
+        std=pd.NamedAgg(y_col, np.std)
+    )
 
     # Calculate data lines
     gdata = []
     if not gdf.empty:
         for data_tuple in unique_cartesian_product(df, extra_title_col, *data_cols):
             try:
-                line_df = gdf.loc[data_tuple, y_col]
+                line_df = gdf.loc[data_tuple, ['mean', 'std']]
             except KeyError:
                 # Combination in data_tuple does not exist
                 continue
@@ -300,15 +305,31 @@ def prepare_time_series_graph_data(df: pd.DataFrame, x_col: str, y_col: str, x_r
     # Make first category (named 0.0) start at the origin
     plot_df.iloc[0] = 0
     # Generate plot commands
-    plot_cmds = [
-        "using 1:($%d/%f) with linespoints pointtype %d linecolor '%s' title '%s%s'" %
-        (
-            index + 2,
-            y_div,
-            get_point_type(point_map, tuple(data_tuple[i + 1] for i in point_type_indices)),
-            get_line_color(line_map, (data_tuple[0], *tuple(data_tuple[i + 1] for i in line_color_indices))),
-            data_tuple[0] if len(data_tuple[0]) == 0 else ("%s " % data_tuple[0]),
-            format_data_title(*data_tuple[1:])
+    plot_cmds = []
+
+    if plot_confidence_area:
+        plot_cmds += [
+            "using 1:((${y_col:d}+${std_col:d})/{y_div:f}):((${y_col:d}-${std_col:d})/{y_div:f})"
+            " with filledcurve fillcolor rgb '#E0{fc:s}' fillstyle solid notitle"
+            "".format(
+                y_col=index * 4 + 2,
+                std_col=index * 4 + 3,
+                y_div=y_div,
+                fc=get_line_color(line_map, (data_tuple[0], *tuple(data_tuple[i + 1] for i in line_color_indices)))
+            )
+            for index, (_, data_tuple) in enumerate(gdata)
+        ]
+
+    plot_cmds += [
+        "using 1:(${y_col:d}/{y_div:f})"
+        " with linespoints pointtype {pt:d} linecolor '#{lc:s}' title '{extra_title:s}{title:s}'"
+        "".format(
+            y_col=index * 4 + 2,
+            y_div=y_div,
+            pt=get_point_type(point_map, tuple(data_tuple[i + 1] for i in point_type_indices)),
+            lc=get_line_color(line_map, (data_tuple[0], *tuple(data_tuple[i + 1] for i in line_color_indices))),
+            extra_title=data_tuple[0] if len(data_tuple[0]) == 0 else ("%s " % data_tuple[0]),
+            title=format_data_title(*data_tuple[1:])
         )
         for index, (_, data_tuple) in enumerate(gdata)
     ]
@@ -373,7 +394,8 @@ def plot_time_series(df: pd.DataFrame, out_dir: str, analysis_name: str, file_co
                                                        line_map=line_map,
                                                        point_type_indices=point_type_indices,
                                                        line_color_indices=line_color_indices,
-                                                       format_data_title=format_data_title)
+                                                       format_data_title=format_data_title,
+                                                       plot_confidence_area=True)
         if prepared_data is None:
             logger.debug("No data for %s %s", analysis_name, print_file_tuple)
             continue
@@ -488,7 +510,8 @@ def plot_time_series_matrix(df: pd.DataFrame, out_dir: str, analysis_name: str, 
                                                                point_type_indices=point_type_indices,
                                                                line_color_indices=line_color_indices,
                                                                format_data_title=format_data_title,
-                                                               data_tuple_key_transform=data_sort_key)
+                                                               data_tuple_key_transform=data_sort_key,
+                                                               plot_confidence_area=True)
                 if prepared_data is None:
                     logger.debug("No data for %s %s", analysis_name, print_subplot_tuple)
                     continue
@@ -519,7 +542,7 @@ def plot_time_series_matrix(df: pd.DataFrame, out_dir: str, analysis_name: str, 
 
         # Add null plot for key
         key_cmds = [
-            "NaN with linespoints pointtype %d linecolor '%s' title '%s%s'" %
+            "NaN with linespoints pointtype %d linecolor '#%s' title '%s%s'" %
             (
                 get_point_type(point_map, tuple(data_tuple[i + 1] for i in point_type_indices)),
                 get_line_color(line_map, (data_tuple[0], *tuple(data_tuple[i + 1] for i in line_color_indices))),
@@ -595,12 +618,6 @@ def plot_timing(df: pd.DataFrame, out_dir: str, analysis_name: str, file_cols: L
     assert 0 <= percentile_low <= 100
     assert 0 <= percentile_high <= 100
 
-    def p_low(x):
-        return np.percentile(x, q=percentile_low)
-
-    def p_high(x):
-        return np.percentile(x, q=percentile_high)
-
     create_output_dirs(out_dir)
 
     # Ensures same point types and line colors across all graphs
@@ -621,8 +638,8 @@ def plot_timing(df: pd.DataFrame, out_dir: str, analysis_name: str, file_cols: L
         gdf = gdf[[*section_cols, *tick_cols, *skew_cols, y_col]]
         gdf = gdf.groupby([*section_cols, *tick_cols, *skew_cols]).aggregate(
             mean=pd.NamedAgg(y_col, np.mean),
-            p_low=pd.NamedAgg(y_col, p_low),
-            p_high=pd.NamedAgg(y_col, p_high)
+            p_low=pd.NamedAgg(y_col, lambda x: np.percentile(x, q=percentile_low)),
+            p_high=pd.NamedAgg(y_col, lambda x: np.percentile(x, q=percentile_high))
         )
 
         # Make sure that all combinations of sections, ticks and skews exists (needed for gnuplot commands)
@@ -699,7 +716,7 @@ def plot_timing(df: pd.DataFrame, out_dir: str, analysis_name: str, file_cols: L
 
         plot_cmds = [
             # using: select values for error bars (x:y:y_low:y_high)
-            "every %d::%d using ($2*%d+$3+1+%f):5:6:7 with errorbars pointtype %d linecolor '%s' title '%s'" %
+            "every %d::%d using ($2*%d+$3+1+%f):5:6:7 with errorbars pointtype %d linecolor '#%s' title '%s'" %
             (
                 skew_cnt,  # point increment
                 skew_idx + 1,  # start point
