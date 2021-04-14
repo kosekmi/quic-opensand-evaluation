@@ -313,8 +313,8 @@ def prepare_time_series_graph_data(df: pd.DataFrame, x_col: str, y_col: str, x_r
             "using 1:((${y_col:d}+${std_col:d})/{y_div:f}):((${y_col:d}-${std_col:d})/{y_div:f})"
             " with filledcurve fillcolor rgb '#E0{fc:s}' fillstyle solid notitle"
             "".format(
-                y_col=index * 4 + 2,
-                std_col=index * 4 + 3,
+                y_col=index * 2 + 2,
+                std_col=index * 2 + 3,
                 y_div=y_div,
                 fc=get_line_color(line_map, (data_tuple[0], *tuple(data_tuple[i + 1] for i in line_color_indices)))
             )
@@ -325,7 +325,7 @@ def prepare_time_series_graph_data(df: pd.DataFrame, x_col: str, y_col: str, x_r
         "using 1:(${y_col:d}/{y_div:f})"
         " with linespoints pointtype {pt:d} linecolor '#{lc:s}' title '{extra_title:s}{title:s}'"
         "".format(
-            y_col=index * 4 + 2,
+            y_col=index * 2 + 2,
             y_div=y_div,
             pt=get_point_type(point_map, tuple(data_tuple[i + 1] for i in point_type_indices)),
             lc=get_line_color(line_map, (data_tuple[0], *tuple(data_tuple[i + 1] for i in line_color_indices))),
