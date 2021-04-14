@@ -280,7 +280,8 @@ def prepare_time_series_graph_data(df: pd.DataFrame, x_col: str, y_col: str, x_r
     gdf = gdf[[extra_title_col, *data_cols, x_col, y_col]]
     gdf = gdf.groupby([extra_title_col, *data_cols, x_col]).aggregate(
         mean=pd.NamedAgg(y_col, np.mean),
-        std=pd.NamedAgg(y_col, np.std)
+        # If this is not a lambda, it will produce NaN for dataframes with only one value per bucket
+        std=pd.NamedAgg(y_col, lambda x: np.std(x))
     )
 
     # Calculate data lines
