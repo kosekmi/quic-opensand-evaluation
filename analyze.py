@@ -519,7 +519,7 @@ def plot_time_series_matrix(df: pd.DataFrame, out_dir: str, analysis_name: str, 
         key_data = set()
 
         # Generate subfigures
-        y_max = max(1, np.ceil(df[y_col].quantile(.99) / y_div))
+        y_max = max(1, np.ceil(df[y_col].replace(0, np.nan).quantile(.99) / y_div))
         for matrix_y_idx, matrix_y_tuple in enumerate(my_unique):
             for matrix_x_idx, matrix_x_tuple in enumerate(mx_unique):
                 print_subplot_tuple = sprint_tuple([*file_cols, *matrix_x_cols, *matrix_y_cols],
