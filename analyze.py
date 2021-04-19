@@ -35,6 +35,7 @@ DataTuple = Tuple[any, ...]
 def get_point_type(point_map: PointMap, val: any):
     """
     Selects the gnuplot 'pointtype' based on the given value. The map ensures, that the same values give the same types.
+
     :param point_map: The map to lookup point types from
     :param val: The value to lookup or generate a point type for
     :return:
@@ -51,6 +52,7 @@ def get_point_type(point_map: PointMap, val: any):
 def get_line_color(line_map: LineMap, val: any):
     """
     Selects the gnuplot 'linecolor' based on the given value. The map ensures, that the same values give the same color.
+
     :param line_map: The map to lookup line colors from
     :param val: The value to lookup or generate a line color for
     :return:
@@ -67,6 +69,7 @@ def get_line_color(line_map: LineMap, val: any):
 def sat_key(sat: str):
     """
     Provides the key for sorting sat orbits from closest to earth to furthest away from earth.
+
     :param sat: The satellite name to sort
     :return:
     """
@@ -78,7 +81,8 @@ def sat_key(sat: str):
 
 def sat_tuple_key(section_tuple: Tuple[any, ...]):
     """
-    Wrapper for sat_key receiving a tuple where the first element is the sat
+    Wrapper for sat_key receiving a tuple where the first element is the sat.
+
     :param section_tuple: A tuple with the sat value on the first entry
     :return:
     """
@@ -88,6 +92,7 @@ def sat_tuple_key(section_tuple: Tuple[any, ...]):
 def apply_si(val: str) -> int:
     """
     Parse an integer from a string with an optional SI suffix.
+
     :param val: The string to parse the integer from.
     :return: An integer with the si suffix applied.
     """
@@ -101,6 +106,7 @@ def apply_si(val: str) -> int:
 def create_output_dirs(out_dir: str):
     """
     Creates output directories (GRAPH_DIR and DATA_DIR) of the analysis if the don't already exist.
+
     :param out_dir: The output folder set via the command line
     :return:
     """
@@ -115,7 +121,8 @@ def create_output_dirs(out_dir: str):
 
 def sprint_buffer_sizes(tbs: str, qbs: str, ubs: str, separator: str = " - ", short_labels: bool = False) -> str:
     """
-    Format the buffer sizes to the shortest possible values
+    Format the buffer sizes to the shortest possible values.
+
     :param tbs: Transport buffer string to format
     :param qbs: Quicly buffer string to format
     :param ubs: UDP buffer string to format
@@ -147,6 +154,7 @@ def sprint_buffer_sizes(tbs: str, qbs: str, ubs: str, separator: str = " - ", sh
 def sprint_tuple(col_names: List[str], col_values: Tuple[any, ...]) -> str:
     """
     Format a tuple into a printable string.
+
     :param col_names: Names of the columns in the tuple
     :param col_values: Tuple values
     :return: A string with all column names and tuple values
@@ -157,6 +165,7 @@ def sprint_tuple(col_names: List[str], col_values: Tuple[any, ...]) -> str:
 def unique_cartesian_product(df: pd.DataFrame, *col_names: str) -> Generator[Tuple[any, ...], None, None]:
     """
     Generates the cartesian product of the unique values for each column in the dataframe.
+
     :param df: The dataframe to read the unique values per column from.
     :param col_names: The names of the columns to use for the cartesian product.
     :return: A generator for value tuples based on the specified columns in the given dataframe.
@@ -185,6 +194,7 @@ def not_nan_tuples(df: pd.DataFrame, data_cols: List[str], nan_cols: List[str]) 
     """
     Creates a unique cartesian product of the data cols and filters those tuples out where all values in the nan_cols are
     NaN.
+
     :param df: The dataframe to create the cartesian product from and which to use for the NaN check
     :param data_cols: The names of the columns to create the unique cartesian product from
     :param nan_cols: The names of the columns to look at when deciding if the data are NaN
@@ -203,9 +213,10 @@ def filter_by_tuples(df: pd.DataFrame, tuples: List[Tuple[any, ...]], cols: List
     """
     Filters the dataframe by the given tuples. Only such rows remain, where the specified columns have one of the tuples
     as values.
+
     :param df: The dataframe to filter
     :param tuples: The tuples to filter by
-    :param cols: The names of the columns to match the tuples to
+    :param cols: The names of the columns to match to the tuples
     :return: The filtered dataframe
     """
 
@@ -223,6 +234,7 @@ def filter_graph_data(df: pd.DataFrame, x_col: str, x_range: Optional[Tuple[int,
                       file_tuple: FileTuple) -> Optional[pd.DataFrame]:
     """
     Filter data relevant for the graph from the dataframe.
+
     :param df: The dataframe to filter
     :param x_col: Name of the column that has the data for the x-axis, only used if x_range is given
     :param x_range: (min, max) tuple for filtering the values for the x-axis, or None for no filter
