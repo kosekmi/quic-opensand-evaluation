@@ -16,13 +16,13 @@ SI = {
     'k': 10 ** 3, 'm': 10 ** 6, 'g': 10 ** 9, 't': 10 ** 12, 'p': 10 ** 15, 'e': 10 ** 18,
 }
 
-GRAPH_PLOT_SIZE_CM = (44, 8)
+GRAPH_PLOT_SIZE_CM = (14, 6)
 GRAPH_PLOT_SECONDS = 30
 GRAPH_PLOT_RTT_SECONDS = 100
 GRAPH_X_BUCKET = 0.1
-VALUE_PLOT_SIZE_CM = (12, 8)
+VALUE_PLOT_SIZE_CM = (8, 8)
 MATRIX_KEY_SIZE = 0.12
-MATRIX_SIZE_SKEW = 0.7
+MATRIX_SIZE_SKEW = 0.8
 
 DEBUG_GNUPLOT = False
 
@@ -1008,7 +1008,7 @@ def analyze_opensand_goodput(df: pd.DataFrame, out_dir: str, extra_title_col: Op
                          format_data_title=lambda protocol, pep:
                          "%s%s" % (protocol.upper(), " (PEP)" if pep else ""),
                          format_file_title=lambda sat, attenuation, ccs, tbs, qbs, ubs:
-                         "Goodput Evolution - %s - %ddB - CC:%s - %s" %
+                         "Goodput Evolution - %s - %ddB - cc=%s - %s" %
                          (sat, attenuation, ccs, sprint_buffer_sizes(tbs, qbs, ubs)),
                          format_file_base=lambda sat, attenuation, ccs, tbs, qbs, ubs:
                          "goodput_%gs_%s_a%d_%s_t%s_q%s_u%s" % (x_bucket, sat, attenuation, ccs, tbs, qbs, ubs),
@@ -1036,7 +1036,7 @@ def analyze_opensand_goodput_matrix(df: pd.DataFrame, out_dir: str):
                                 "%s%s %s" %
                                 (protocol.upper(), " (PEP)" if pep else "", sprint_buffer_sizes(tbs, qbs, ubs)),
                                 format_subplot_title=lambda sat, ccs:
-                                "Goodput Evolution - %s - CC:%s" % (sat, ccs),
+                                "Goodput Evolution - %s - cc=%s" % (sat, ccs),
                                 format_file_title=lambda attenuation:
                                 "Goodput Evolution - %ddB" % attenuation,
                                 format_file_base=lambda attenuation:
@@ -1063,7 +1063,7 @@ def analyze_opensand_goodput_cc_matrix(df: pd.DataFrame, out_dir: str):
                                 point_type_indices=[],
                                 line_color_indices=[0],
                                 format_data_title=lambda ccs:
-                                "CC:%s" % ccs,
+                                "cc=%s" % ccs,
                                 format_subplot_title=lambda sat, protocol, pep, tbs, qbs, ubs:
                                 "Goodput Evolution - %s - %s%s - %s" %
                                 (sat, protocol.upper(), " (PEP)" if pep else "", sprint_buffer_sizes(tbs, qbs, ubs)),
@@ -1123,7 +1123,7 @@ def analyze_opensand_cwnd_evo(df: pd.DataFrame, out_dir: str):
                          format_data_title=lambda protocol, pep:
                          "%s%s" % (protocol.upper(), " (PEP)" if pep else ""),
                          format_file_title=lambda sat, attenuation, ccs, tbs, qbs, ubs:
-                         "Congestion Window Evolution - %s - %ddB - CC:%s - %s"
+                         "Congestion Window Evolution - %s - %ddB - cc=%s - %s"
                          % (sat, attenuation, ccs, sprint_buffer_sizes(tbs, qbs, ubs)),
                          format_file_base=lambda sat, attenuation, ccs, tbs, qbs, ubs:
                          "cwnd_evo_%gs_%s_a%d_%s_t%s_q%s_u%s" %
@@ -1151,7 +1151,7 @@ def analyze_opensand_cwnd_evo_matrix(df: pd.DataFrame, out_dir: str):
                                 "%s%s %s" % (protocol.upper(), " (PEP)" if pep else "",
                                              sprint_buffer_sizes(tbs, qbs, ubs)),
                                 format_subplot_title=lambda sat, ccs:
-                                "Congestion Window Evolution - %s - CC:%s" % (sat, ccs),
+                                "Congestion Window Evolution - %s - cc=%s" % (sat, ccs),
                                 format_file_title=lambda attenuation:
                                 "Congestion Window Evolution - %ddB" % attenuation,
                                 format_file_base=lambda attenuation:
@@ -1178,7 +1178,7 @@ def analyze_opensand_cwnd_evo_cc_matrix(df: pd.DataFrame, out_dir: str):
                                 point_type_indices=[],
                                 line_color_indices=[0],
                                 format_data_title=lambda ccs:
-                                "CC: %s" % ccs,
+                                "cc= %s" % ccs,
                                 format_subplot_title=lambda sat, protocol, pep, tbs, qbs, ubs:
                                 "Congestion Window Evolution - %s - %s%s - %s" %
                                 (sat, protocol.upper(), " (PEP)" if pep else "", sprint_buffer_sizes(tbs, qbs, ubs)),
@@ -1238,8 +1238,8 @@ def analyze_opensand_packet_loss(df: pd.DataFrame, out_dir: str):
                          format_data_title=lambda protocol, pep:
                          "%s%s" % (protocol.upper(), " (PEP)" if pep else ""),
                          format_file_title=lambda sat, attenuation, ccs, tbs, qbs, ubs:
-                         "Packet Loss - %s - %ddB - CC:%s - tbs=%s - qbs=%s - ubs=%s" % (
-                             sat, attenuation, ccs, tbs, qbs, ubs),
+                         "Packet Loss - %s - %ddB - cc=%s - %s" %
+                         (sat, attenuation, ccs, sprint_buffer_sizes(tbs, qbs, ubs)),
                          format_file_base=lambda sat, attenuation, ccs, tbs, qbs, ubs:
                          "packet_loss_%gs_%s_a%d_%s_t%s_q%s_u%s" %
                          (x_bucket, sat, attenuation, ccs, tbs, qbs, ubs))
@@ -1257,7 +1257,7 @@ def analyze_opensand_packet_loss_matrix(df: pd.DataFrame, out_dir: str):
                                 y_col='packets_lost',
                                 x_range=(0, GRAPH_PLOT_SECONDS),
                                 x_bucket=x_bucket,
-                                y_div=1000,
+                                y_div=1,
                                 x_label="Time (s)",
                                 y_label="Packets lost",
                                 point_type_indices=[2, 3, 4],
