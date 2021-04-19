@@ -19,7 +19,7 @@ def setup_logger():
     logger.setLevel(logging.DEBUG)
     handler = logging.StreamHandler(sys.stdout)
     handler.setLevel(logging.DEBUG)
-    handler.setFormatter(logging.Formatter('%(asctime)s %(processName)-8s [%(levelname)s] %(message)s'))
+    handler.setFormatter(logging.Formatter('%(asctime)s %(processName)-12s [%(levelname)s] %(message)s'))
     logger.addHandler(handler)
 
 

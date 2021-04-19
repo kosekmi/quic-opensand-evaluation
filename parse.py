@@ -987,12 +987,12 @@ def list_result_folders(root_folder: str) -> Generator[str, None, None]:
 def __parse_results_mp(in_dir: str, out_dir: str, scenarios: Dict[str, Dict], config_columns: List[str],
                        measure_type: common.MeasureType) -> Dict[str, pd.DataFrame]:
     tasks = [
-        ('quic_cl', parse_quic_client, mp.Pipe()),
-        ('quic_sv', parse_quic_server, mp.Pipe()),
-        ('quic_tm', parse_quic_timing, mp.Pipe()),
-        ('tcp_cl', parse_tcp_client, mp.Pipe()),
-        ('tcp_sv', parse_tcp_server, mp.Pipe()),
-        ('tcp_tm', parse_tcp_timing, mp.Pipe()),
+        ('quic_client', parse_quic_client, mp.Pipe()),
+        ('quic_server', parse_quic_server, mp.Pipe()),
+        ('quic_timing', parse_quic_timing, mp.Pipe()),
+        ('tcp_client', parse_tcp_client, mp.Pipe()),
+        ('tcp_server', parse_tcp_server, mp.Pipe()),
+        ('tcp_timing', parse_tcp_timing, mp.Pipe()),
         ('ping', parse_ping, mp.Pipe()),
     ]
 
