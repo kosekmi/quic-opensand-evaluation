@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 import getopt
-import logging
+import multiprocessing as mp
 import os
 import sys
 
 import analyze
 import parse
-from common import Mode
+from common import Mode, logger, setup_logger
 
 
 def usage(name):
@@ -71,18 +71,8 @@ def parse_args(name, argv):
 
 
 def main(name, argv):
-    global logger
-
-    try:
-        logger
-    except NameError:
-        # No logger defined
-        logger = logging.getLogger(__name__)
-        logger.setLevel(logging.DEBUG)
-        handler = logging.StreamHandler(sys.stdout)
-        handler.setLevel(logging.DEBUG)
-        handler.setFormatter(logging.Formatter('%(asctime)s [%(levelname)s] %(message)s'))
-        logger.addHandler(handler)
+    setup_logger()
+    mp.current_process().name = "main"
 
     mode, in_dir, out_dir, do_auto_detect, multi_process = parse_args(name, argv)
 

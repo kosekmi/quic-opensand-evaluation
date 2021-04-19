@@ -1,14 +1,12 @@
-import logging
 import multiprocessing as mp
 import os
-import sys
 from typing import Optional, Dict, Tuple, Iterable, List, Callable, Generator
 
 import numpy as np
 import pandas as pd
 from pygnuplot import gnuplot
 
-from common import MeasureType, GRAPH_DIR, DATA_DIR
+from common import MeasureType, GRAPH_DIR, DATA_DIR, logger
 
 LINE_COLORS = ['000000', 'FF0000', '9400D3', '0000FF', '006400', 'FF8C00', 'FFD700', '00FFFF', '00FF7F',
                'FFA500', 'ADFF2F', 'EE82EE', '4169E1', 'FF1493', 'FFC0CB', '2E8B57']
@@ -27,18 +25,6 @@ MATRIX_KEY_SIZE = 0.12
 MATRIX_SIZE_SKEW = 0.7
 
 DEBUG_GNUPLOT = False
-
-global logger
-try:
-    logger
-except NameError:
-    # No logger defined
-    logger = logging.getLogger(__name__)
-    logger.setLevel(logging.DEBUG)
-    handler = logging.StreamHandler(sys.stdout)
-    handler.setLevel(logging.DEBUG)
-    handler.setFormatter(logging.Formatter('%(asctime)s %(processName)s [%(levelname)s] %(message)s'))
-    logger.addHandler(handler)
 
 PointMap = Dict[any, int]
 LineMap = Dict[any, str]
@@ -1631,7 +1617,7 @@ def analyze_all(parsed_results: dict, measure_type: MeasureType, out_dir: str, m
                        args=(parsed_results, measure_type, out_dir, time_series_cols)),
             mp.Process(target=__analyze_all_cwnd_evo, name='cwnd_evo',
                        args=(parsed_results, measure_type, out_dir, time_series_cols)),
-            mp.Process(target=__analyze_all_packet_loss, name='packet_loss',
+            mp.Process(target=__analyze_all_packet_loss, name='pkt_loss',
                        args=(parsed_results, measure_type, out_dir, time_series_cols)),
             mp.Process(target=__analyze_all_rtt, name='rtt',
                        args=(parsed_results, measure_type, out_dir)),

@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+import logging
+import sys
 from enum import Enum
 
 RAW_DATA_DIR = 'parsed'
@@ -7,6 +9,18 @@ DATA_DIR = 'data'
 
 TYPE_FILE = '.type'
 AUTO_DETECT_FILE = '.auto-detect'
+
+logger = logging.getLogger(__name__)
+
+
+def setup_logger():
+    global logger
+
+    logger.setLevel(logging.DEBUG)
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setLevel(logging.DEBUG)
+    handler.setFormatter(logging.Formatter('%(asctime)s %(processName)-8s [%(levelname)s] %(message)s'))
+    logger.addHandler(handler)
 
 
 class Mode(Enum):
