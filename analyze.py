@@ -750,7 +750,7 @@ def plot_timing(df: pd.DataFrame, out_dir: str, analysis_name: str, file_cols: L
             (
                 skew_cnt,  # point increment
                 skew_idx + 1,  # start point
-                tick_cnt + 1,  # sat offset
+                tick_cnt + 1,  # section offset
                 (skew_idx + 1) * (0.8 / (skew_cnt + 1)) - 0.4,  # skew within [-0.4; +0.4]
                 get_point_type(point_map, None),
                 get_line_color(line_map, skew_tuple),
@@ -1316,7 +1316,7 @@ def analyze_opensand_ttfb(df: pd.DataFrame, out_dir: str):
                 format_tick_title=lambda ccs: "%s" % ccs,
                 format_skew_title=lambda tbs, qbs, ubs: sprint_buffer_sizes(tbs, qbs, ubs),
                 sort_section=lambda section_tuples: sorted(section_tuples, key=sat_tuple_key),
-                sort_tick=lambda tick_tuples: sorted(tick_tuples, reverse=True),
+                sort_tick=lambda tick_tuples: sorted(tick_tuples),
                 sort_skew=lambda skew_tuples: sorted(skew_tuples, key=lambda t: apply_si(t[0].split(',')[0])),
                 percentile_low=5,
                 percentile_high=95)
@@ -1390,7 +1390,7 @@ def analyze_opensand_conn_est(df: pd.DataFrame, out_dir: str):
                 format_tick_title=lambda ccs: "%s" % ccs,
                 format_skew_title=lambda tbs, qbs, ubs: sprint_buffer_sizes(tbs, qbs, ubs),
                 sort_section=lambda section_tuples: sorted(section_tuples, key=sat_tuple_key),
-                sort_tick=lambda tick_tuples: sorted(tick_tuples, reverse=True),
+                sort_tick=lambda tick_tuples: sorted(tick_tuples),
                 sort_skew=lambda skew_tuples: sorted(skew_tuples,
                                                      key=lambda t: apply_si(t[0].split(',')[0])),
                 percentile_low=5,
@@ -1415,7 +1415,7 @@ def analyze_opensand_conn_est_cc(df: pd.DataFrame, out_dir: str):
                 format_tick_title=lambda protocol, pep: "%s%s" % (protocol.upper(), " (PEP)" if pep else ""),
                 format_skew_title=lambda ccs: "cc=%s" % ccs,
                 sort_section=lambda section_tuples: sorted(section_tuples, key=sat_tuple_key),
-                sort_tick=lambda tick_tuples: sorted(tick_tuples, reverse=True),
+                sort_tick=lambda tick_tuples: sorted(tick_tuples),
                 sort_skew=lambda skew_tuples: sorted(skew_tuples),
                 percentile_low=5,
                 percentile_high=95)
@@ -1439,7 +1439,7 @@ def analyze_opensand_conn_est_bs(df: pd.DataFrame, out_dir: str):
                 format_tick_title=lambda protocol, pep: "%s%s" % (protocol.upper(), " (PEP)" if pep else ""),
                 format_skew_title=lambda tbs, qbs, ubs: sprint_buffer_sizes(tbs, qbs, ubs),
                 sort_section=lambda section_tuples: sorted(section_tuples, key=sat_tuple_key),
-                sort_tick=lambda tick_tuples: sorted(tick_tuples, reverse=True),
+                sort_tick=lambda tick_tuples: sorted(tick_tuples),
                 sort_skew=lambda skew_tuples: sorted(skew_tuples, key=lambda s_tup: tuple(
                     tuple(apply_si(bv) for bv in bs.split(','))
                     for bs in s_tup)),
