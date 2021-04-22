@@ -3,6 +3,8 @@
 These scripts are used to parse the data of a measurement into pandas dataframes
 and analyze these data afterwards by generating plots with gnuplot.
 
+To run a measurement you can use these scripts: [quic-opensand-emulation](https://github.com/moonlight200/quic-opensand-emulation)
+
 ## Installation
 
 1. Copy the scripts to a folder of your choice (make sure they are in the same folder)
