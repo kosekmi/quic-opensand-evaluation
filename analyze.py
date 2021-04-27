@@ -137,13 +137,21 @@ def sprint_buffer_sizes(tbs: str, qbs: str, ubs: str, separator: str = " - ", sh
         ['u', ubs.split(",")],
     ]
 
+    identical = False
+
+    if bs_vals[1][1][1:3] == bs_vals[0][1] and bs_vals[1][1] == bs_vals[2][1]:
+        identical = True
+
     for bs_val in bs_vals:
         _, vals = bs_val
         if np.all([v == vals[0] for v in vals]):
             bs_val[1] = vals[:1]
 
     if np.all([v == bs_vals[0][1] for _, v in bs_vals]):
-        return "b%s%s" % ("" if short_labels else "s=", ",".join(bs_vals[0][1]))
+        identical = True
+
+    if identical:
+        return "b%s%s" % ("" if short_labels else "s=", ",".join(bs_vals[1][1]))
 
     return separator.join([
         "%s%s%s" % (c, "" if short_labels else "bs=", ",".join(val))
