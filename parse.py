@@ -133,6 +133,7 @@ def fix_dtypes(df: pd.DataFrame) -> pd.DataFrame:
         'tbs': np.str,
         'qbs': np.str,
         'ubs': np.str,
+        'prime': np.float32,
     }
 
     # Set defaults
@@ -1086,7 +1087,7 @@ def parse_results(in_dir: str, out_dir: str, multi_process: bool = False
     auto_detect = parse_auto_detect(in_dir, out_dir)
 
     # prepare columns
-    config_columns = ['protocol', 'pep', 'sat']
+    config_columns = ['protocol', 'pep', 'sat', 'prime']
     if measure_type == common.MeasureType.NETEM:
         config_columns.extend(['rate', 'loss', 'queue'])
     elif measure_type == common.MeasureType.OPENSAND:

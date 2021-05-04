@@ -1304,6 +1304,24 @@ def analyze_opensand_rtt(df: pd.DataFrame, out_dir: str):
                          "Round Trip Time - %s - %d dB" % (sat, attenuation),
                          format_file_base=lambda sat, attenuation:
                          "rtt_%gs_%s_a%d" % (x_bucket, sat, attenuation))
+        plot_time_series(df, out_dir,
+                         analysis_name='OPENSAND_RTT_PRIME_%gS' % x_bucket,
+                         file_cols=['sat', 'attenuation'],
+                         data_cols=['prime'],
+                         x_col='second',
+                         y_col='rtt',
+                         x_range=(0, 20),
+                         x_bucket=x_bucket,
+                         y_div=1,
+                         x_label="Time (s)",
+                         y_label="RTT (ms)",
+                         point_type_indices=[],
+                         line_color_indices=[0],
+                         format_data_title=lambda prime: "RTT - %gs" % prime,
+                         format_file_title=lambda sat, attenuation:
+                         "Round Trip Time - %s" % sat,
+                         format_file_base=lambda sat, attenuation:
+                         "rtt_prime_%gs_%s_a%d" % (x_bucket, sat, attenuation))
 
 
 def analyze_opensand_ttfb(df: pd.DataFrame, out_dir: str):
@@ -1581,7 +1599,7 @@ def __analyze_all_packet_loss(parsed_results: dict, measure_type: MeasureType, o
 def __analyze_all_rtt(parsed_results: dict, measure_type: MeasureType, out_dir: str) -> None:
     logger.info("Analyzing round trip time")
 
-    rtt_cols = ['sat', 'seq', 'rtt']
+    rtt_cols = ['sat', 'seq', 'rtt', 'prime']
     if measure_type == MeasureType.NETEM:
         rtt_cols.extend(['rate', 'loss', 'queue'])
     elif measure_type == MeasureType.OPENSAND:

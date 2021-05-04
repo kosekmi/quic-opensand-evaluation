@@ -64,7 +64,7 @@ def parse_args(name, argv):
             out_dir = in_dir
         else:
             print("No output directory specified")
-            print("%s -h for help", name)
+            print("%s -h for help" % name)
             sys.exit(1)
 
     return mode, in_dir, out_dir, auto_detect, multi_process
