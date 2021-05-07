@@ -16,13 +16,16 @@ SI = {
     'k': 10 ** 3, 'm': 10 ** 6, 'g': 10 ** 9, 't': 10 ** 12, 'p': 10 ** 15, 'e': 10 ** 18,
 }
 
-GRAPH_PLOT_SIZE_CM = (14, 6)
+GRAPH_PLOT_SIZE_CM = (12, 6)
 GRAPH_PLOT_SECONDS = 30
 GRAPH_PLOT_RTT_SECONDS = 100
 GRAPH_X_BUCKET = 0.1
 VALUE_PLOT_SIZE_CM = (8, 8)
 MATRIX_KEY_SIZE = 0.12
-MATRIX_SIZE_SKEW = 0.8
+# For sideways figure
+MATRIX_SUBPLOT_SIZE_CM = (GRAPH_PLOT_SIZE_CM[0] * 0.75, GRAPH_PLOT_SIZE_CM[1] * 0.75)
+# For normal figure
+# MATRIX_SUBPLOT_SIZE_CM = (GRAPH_PLOT_SIZE_CM[0] * 0.5, GRAPH_PLOT_SIZE_CM[1] * 0.75)
 
 DEBUG_GNUPLOT = False
 
@@ -380,6 +383,7 @@ def plot_time_series(df: pd.DataFrame, out_dir: str, analysis_name: str, file_co
                      y_div: float, x_label: str, y_label: str, point_type_indices: List[int],
                      line_color_indices: List[int], format_data_title: Callable[[DataTuple], str],
                      format_file_title: Callable[[FileTuple], str], format_file_base: Callable[[FileTuple], str],
+                     data_sort_key: Callable[[DataTuple], any] = lambda x: x,
                      extra_title_col: Optional[str] = None) -> None:
     """
     Plot a time series graph. It is built for, but not restricted to having a time unit (e.g. seconds) on the x-axis.
@@ -401,6 +405,7 @@ def plot_time_series(df: pd.DataFrame, out_dir: str, analysis_name: str, file_co
     :param format_data_title: Function to format the title of a data line, receives a data_tuple (data_cols values)
     :param format_file_title: Function to format the title of a graph, receives a file_tuple (file_cols values)
     :param format_file_base: Function to format the base name of a graph file, receives a file_tuple (file_cols values)
+    :param data_sort_key: Function to transform a data tuple to a key to sort the data by
     :param extra_title_col: Name of the column that holds a string prefix for the data title
     """
 
@@ -433,6 +438,7 @@ def plot_time_series(df: pd.DataFrame, out_dir: str, analysis_name: str, file_co
                                                        point_type_indices=point_type_indices,
                                                        line_color_indices=line_color_indices,
                                                        format_data_title=format_data_title,
+                                                       data_tuple_key_transform=data_sort_key,
                                                        plot_confidence_area=True)
         if prepared_data is None:
             logger.debug("No data for %s %s", analysis_name, print_file_tuple)
@@ -609,7 +615,7 @@ def plot_time_series_matrix(df: pd.DataFrame, out_dir: str, analysis_name: str, 
             *subfigures,
             title='"%s"' % format_file_title(*file_tuple),
             term='pdf size %dcm, %dcm' %
-                 (GRAPH_PLOT_SIZE_CM[0] * MATRIX_SIZE_SKEW * mx_cnt, GRAPH_PLOT_SIZE_CM[1] * my_cnt),
+                 (MATRIX_SUBPLOT_SIZE_CM[0] * mx_cnt, MATRIX_SUBPLOT_SIZE_CM[1] * my_cnt),
             output='"%s.pdf"' % os.path.join(out_dir, GRAPH_DIR, format_file_base(*file_tuple)),
         )
 
@@ -1008,16 +1014,16 @@ def analyze_opensand_goodput(df: pd.DataFrame, out_dir: str, extra_title_col: Op
                          y_col='bps',
                          x_range=(0, GRAPH_PLOT_SECONDS),
                          x_bucket=x_bucket,
-                         y_div=1000,
+                         y_div=1000000,
                          x_label="Time (s)",
-                         y_label="Goodput (kbps)",
+                         y_label="Goodput (mbps)",
                          point_type_indices=[],
                          line_color_indices=[0, 1],
                          format_data_title=lambda protocol, pep:
                          "%s%s" % (protocol.upper(), " (PEP)" if pep else ""),
                          format_file_title=lambda sat, attenuation, ccs, tbs, qbs, ubs:
-                         "Goodput Evolution - %s - %ddB - cc=%s - %s" %
-                         (sat, attenuation, ccs, sprint_buffer_sizes(tbs, qbs, ubs)),
+                         "Goodput Evolution - %s - cc=%s - %s" %
+                         (sat, ccs, sprint_buffer_sizes(tbs, qbs, ubs)),
                          format_file_base=lambda sat, attenuation, ccs, tbs, qbs, ubs:
                          "goodput_%gs_%s_a%d_%s_t%s_q%s_u%s" % (x_bucket, sat, attenuation, ccs, tbs, qbs, ubs),
                          extra_title_col=extra_title_col)
@@ -1035,9 +1041,9 @@ def analyze_opensand_goodput_matrix(df: pd.DataFrame, out_dir: str):
                                 y_col='bps',
                                 x_range=(0, GRAPH_PLOT_SECONDS),
                                 x_bucket=x_bucket,
-                                y_div=1000,
+                                y_div=1000000,
                                 x_label="Time (s)",
-                                y_label="Goodput (kbps)",
+                                y_label="Goodput (mbps)",
                                 point_type_indices=[2, 3, 4],
                                 line_color_indices=[0, 1],
                                 format_data_title=lambda protocol, pep, tbs, qbs, ubs:
@@ -1060,21 +1066,21 @@ def analyze_opensand_goodput_cc_matrix(df: pd.DataFrame, out_dir: str):
                                 file_cols=['attenuation'],
                                 data_cols=['ccs'],
                                 matrix_x_cols=['sat'],
-                                matrix_y_cols=['protocol', 'pep', 'tbs', 'qbs', 'ubs'],
+                                matrix_y_cols=['protocol', 'pep'],
                                 x_col='second',
                                 y_col='bps',
                                 x_range=(0, GRAPH_PLOT_SECONDS),
                                 x_bucket=x_bucket,
-                                y_div=1000,
+                                y_div=1000000,
                                 x_label="Time (s)",
-                                y_label="Goodput (kbps)",
+                                y_label="Goodput (mbps)",
                                 point_type_indices=[],
                                 line_color_indices=[0],
                                 format_data_title=lambda ccs:
                                 "cc=%s" % ccs,
-                                format_subplot_title=lambda sat, protocol, pep, tbs, qbs, ubs:
-                                "Goodput Evolution - %s - %s%s - %s" %
-                                (sat, protocol.upper(), " (PEP)" if pep else "", sprint_buffer_sizes(tbs, qbs, ubs)),
+                                format_subplot_title=lambda sat, protocol, pep:
+                                "Goodput Evolution - %s - %s%s" %
+                                (sat, protocol.upper(), " (PEP)" if pep else ""),
                                 format_file_title=lambda attenuation:
                                 "Goodput Evolution - %ddB" % attenuation,
                                 format_file_base=lambda attenuation:
@@ -1090,20 +1096,20 @@ def analyze_opensand_goodput_bs_matrix(df: pd.DataFrame, out_dir: str):
                                 file_cols=['attenuation'],
                                 data_cols=['tbs', 'qbs', 'ubs'],
                                 matrix_x_cols=['sat'],
-                                matrix_y_cols=['protocol', 'pep', 'ccs'],
+                                matrix_y_cols=['protocol', 'pep'],
                                 x_col='second',
                                 y_col='bps',
                                 x_range=(0, GRAPH_PLOT_SECONDS),
                                 x_bucket=x_bucket,
-                                y_div=1000,
+                                y_div=1000000,
                                 x_label="Time (s)",
-                                y_label="Goodput (kbps)",
+                                y_label="Goodput (mbps)",
                                 point_type_indices=[],
                                 line_color_indices=[0],
                                 format_data_title=lambda tbs, qbs, ubs: sprint_buffer_sizes(tbs, qbs, ubs),
-                                format_subplot_title=lambda sat, protocol, pep, ccs:
-                                "Goodput Evolution - %s%s - %s - cc=%s" %
-                                (protocol.upper(), " (PEP)" if pep else "", sat, ccs),
+                                format_subplot_title=lambda sat, protocol, pep:
+                                "Goodput Evolution - %s%s - %s" %
+                                (protocol.upper(), " (PEP)" if pep else "", sat),
                                 format_file_title=lambda attenuation:
                                 "Goodput Evolution - %ddB" % attenuation,
                                 format_file_base=lambda attenuation:
@@ -1123,16 +1129,16 @@ def analyze_opensand_cwnd_evo(df: pd.DataFrame, out_dir: str):
                          y_col='cwnd',
                          x_range=(0, GRAPH_PLOT_SECONDS),
                          x_bucket=x_bucket,
-                         y_div=1000,
+                         y_div=1000000,
                          x_label="Time (s)",
-                         y_label="Congestion window (KB)",
+                         y_label="Congestion window (MB)",
                          point_type_indices=[],
                          line_color_indices=[0, 1],
                          format_data_title=lambda protocol, pep:
                          "%s%s" % (protocol.upper(), " (PEP)" if pep else ""),
                          format_file_title=lambda sat, attenuation, ccs, tbs, qbs, ubs:
-                         "Congestion Window Evolution - %s - %ddB - cc=%s - %s"
-                         % (sat, attenuation, ccs, sprint_buffer_sizes(tbs, qbs, ubs)),
+                         "Congestion Window Evolution - %s - cc=%s - %s"
+                         % (sat, ccs, sprint_buffer_sizes(tbs, qbs, ubs)),
                          format_file_base=lambda sat, attenuation, ccs, tbs, qbs, ubs:
                          "cwnd_evo_%gs_%s_a%d_%s_t%s_q%s_u%s" %
                          (x_bucket, sat, attenuation, ccs, tbs, qbs, ubs))
@@ -1150,9 +1156,9 @@ def analyze_opensand_cwnd_evo_matrix(df: pd.DataFrame, out_dir: str):
                                 y_col='cwnd',
                                 x_range=(0, GRAPH_PLOT_SECONDS),
                                 x_bucket=x_bucket,
-                                y_div=1000,
+                                y_div=1000000,
                                 x_label="Time (s)",
-                                y_label="Congestion window (KB)",
+                                y_label="Congestion window (MB)",
                                 point_type_indices=[2, 3, 4],
                                 line_color_indices=[0, 1],
                                 format_data_title=lambda protocol, pep, tbs, qbs, ubs:
@@ -1175,21 +1181,21 @@ def analyze_opensand_cwnd_evo_cc_matrix(df: pd.DataFrame, out_dir: str):
                                 file_cols=['attenuation'],
                                 data_cols=['ccs'],
                                 matrix_x_cols=['sat'],
-                                matrix_y_cols=['protocol', 'pep', 'tbs', 'qbs', 'ubs'],
+                                matrix_y_cols=['protocol', 'pep'],
                                 x_col='second',
                                 y_col='cwnd',
                                 x_range=(0, GRAPH_PLOT_SECONDS),
                                 x_bucket=x_bucket,
-                                y_div=1000,
+                                y_div=1000000,
                                 x_label="Time (s)",
-                                y_label="Congestion window (KB)",
+                                y_label="Congestion window (MB)",
                                 point_type_indices=[],
                                 line_color_indices=[0],
                                 format_data_title=lambda ccs:
                                 "cc= %s" % ccs,
-                                format_subplot_title=lambda sat, protocol, pep, tbs, qbs, ubs:
-                                "Congestion Window Evolution - %s - %s%s - %s" %
-                                (sat, protocol.upper(), " (PEP)" if pep else "", sprint_buffer_sizes(tbs, qbs, ubs)),
+                                format_subplot_title=lambda sat, protocol, pep:
+                                "Congestion Window Evolution - %s - %s%s" %
+                                (sat, protocol.upper(), " (PEP)" if pep else ""),
                                 format_file_title=lambda attenuation:
                                 "Congestion Window Evolution - %ddB" % attenuation,
                                 format_file_base=lambda attenuation:
@@ -1210,15 +1216,15 @@ def analyze_opensand_cwnd_evo_bs_matrix(df: pd.DataFrame, out_dir: str):
                                 y_col='cwnd',
                                 x_range=(0, GRAPH_PLOT_SECONDS),
                                 x_bucket=x_bucket,
-                                y_div=1000,
+                                y_div=1000000,
                                 x_label="Time (s)",
-                                y_label="Congestion window (KB)",
+                                y_label="Congestion window (MB)",
                                 point_type_indices=[],
                                 line_color_indices=[0],
                                 format_data_title=lambda tbs, qbs, ubs: sprint_buffer_sizes(tbs, qbs, ubs),
                                 format_subplot_title=lambda sat, protocol, pep, ccs:
-                                "Congestion Window Evolution - %s%s - %s - cc=%s" %
-                                (protocol.upper(), " (PEP)" if pep else "", sat, ccs),
+                                "Congestion Window Evolution - %s%s - %s" %
+                                (protocol.upper(), " (PEP)" if pep else "", sat),
                                 format_file_title=lambda attenuation:
                                 "Congestion Window Evolution - %ddB" % attenuation,
                                 format_file_base=lambda attenuation:
@@ -1246,8 +1252,8 @@ def analyze_opensand_packet_loss(df: pd.DataFrame, out_dir: str):
                          format_data_title=lambda protocol, pep:
                          "%s%s" % (protocol.upper(), " (PEP)" if pep else ""),
                          format_file_title=lambda sat, attenuation, ccs, tbs, qbs, ubs:
-                         "Packet Loss - %s - %ddB - cc=%s - %s" %
-                         (sat, attenuation, ccs, sprint_buffer_sizes(tbs, qbs, ubs)),
+                         "Packet Loss - %s - cc=%s - %s" %
+                         (sat, ccs, sprint_buffer_sizes(tbs, qbs, ubs)),
                          format_file_base=lambda sat, attenuation, ccs, tbs, qbs, ubs:
                          "packet_loss_%gs_%s_a%d_%s_t%s_q%s_u%s" %
                          (x_bucket, sat, attenuation, ccs, tbs, qbs, ubs))
@@ -1271,8 +1277,8 @@ def analyze_opensand_packet_loss_matrix(df: pd.DataFrame, out_dir: str):
                                 point_type_indices=[2, 3, 4],
                                 line_color_indices=[0, 1],
                                 format_data_title=lambda protocol, pep, tbs, qbs, ubs:
-                                "%s%s %s" %
-                                (protocol.upper(), " (PEP)" if pep else "", sprint_buffer_sizes(tbs, qbs, ubs)),
+                                "%s%s" %
+                                (protocol.upper(), " (PEP)" if pep else ""),
                                 format_subplot_title=lambda sat, ccs:
                                 "Packet Loss - %s - cc=%s" % (sat, ccs),
                                 format_file_title=lambda attenuation:
@@ -1304,24 +1310,53 @@ def analyze_opensand_rtt(df: pd.DataFrame, out_dir: str):
                          "Round Trip Time - %s - %d dB" % (sat, attenuation),
                          format_file_base=lambda sat, attenuation:
                          "rtt_%gs_%s_a%d" % (x_bucket, sat, attenuation))
+
+
+def analyze_opensand_rtt_prime(df: pd.DataFrame, out_dir: str):
+    df['second'] = df['seq'] / 100.0
+    for x_bucket in {GRAPH_X_BUCKET, 1}:
         plot_time_series(df, out_dir,
                          analysis_name='OPENSAND_RTT_PRIME_%gS' % x_bucket,
                          file_cols=['sat', 'attenuation'],
                          data_cols=['prime'],
                          x_col='second',
                          y_col='rtt',
-                         x_range=(0, 20),
+                         x_range=(0, GRAPH_PLOT_SECONDS),
                          x_bucket=x_bucket,
                          y_div=1,
                          x_label="Time (s)",
                          y_label="RTT (ms)",
                          point_type_indices=[],
                          line_color_indices=[0],
-                         format_data_title=lambda prime: "RTT - %gs" % prime,
+                         format_data_title=lambda prime: "%gs" % prime,
                          format_file_title=lambda sat, attenuation:
                          "Round Trip Time - %s" % sat,
                          format_file_base=lambda sat, attenuation:
                          "rtt_prime_%gs_%s_a%d" % (x_bucket, sat, attenuation))
+
+
+def analyze_opensand_rtt_sat(df: pd.DataFrame, out_dir: str):
+    df['second'] = df['seq'] / 100.0
+    for x_bucket in {GRAPH_X_BUCKET, 1}:
+        plot_time_series(df, out_dir,
+                         analysis_name='OPENSAND_RTT_SAT_%gS' % x_bucket,
+                         file_cols=['prime', 'attenuation'],
+                         data_cols=['sat'],
+                         x_col='second',
+                         y_col='rtt',
+                         x_range=(0, GRAPH_PLOT_SECONDS),
+                         x_bucket=x_bucket,
+                         y_div=1,
+                         x_label="Time (s)",
+                         y_label="RTT (ms)",
+                         point_type_indices=[],
+                         line_color_indices=[0],
+                         format_data_title=lambda sat: "%s" % sat,
+                         format_file_title=lambda prime, attenuation:
+                         "Round Trip Time",
+                         format_file_base=lambda prime, attenuation:
+                         "rtt_sat_%gs_p%gs_a%d" % (x_bucket, prime, attenuation),
+                         data_sort_key=lambda data: sat_key(data[0]) * -1)
 
 
 def analyze_opensand_ttfb(df: pd.DataFrame, out_dir: str):
@@ -1335,7 +1370,7 @@ def analyze_opensand_ttfb(df: pd.DataFrame, out_dir: str):
                 x_label="Satellite type, congestion control",
                 y_label="Time (ms)",
                 format_file_title=lambda protocol, pep, attenuation:
-                "Time to First Byte - %s%s - %ddB" % (protocol.upper(), " (PEP)" if pep else "", attenuation),
+                "Time to First Byte - %s%s" % (protocol.upper(), " (PEP)" if pep else ""),
                 format_file_base=lambda protocol, pep, attenuation:
                 "ttfb_%s%s_a%d" % (protocol, "_pep" if pep else "", attenuation),
                 format_section_title=lambda sat: "%s" % sat.upper(),
@@ -1359,7 +1394,7 @@ def analyze_opensand_ttfb_cc(df: pd.DataFrame, out_dir: str):
                 x_label="Satellite type, protocol",
                 y_label="Time (ms)",
                 format_file_title=lambda attenuation, tbs, qbs, ubs:
-                "Time to First Byte - %ddB - %s" % (attenuation, sprint_buffer_sizes(tbs, qbs, ubs)),
+                "Time to First Byte - %s" % sprint_buffer_sizes(tbs, qbs, ubs),
                 format_file_base=lambda attenuation, tbs, qbs, ubs:
                 "ttfb_cc_a%d_t%s_q%s_u%s" % (attenuation, tbs, qbs, ubs),
                 format_section_title=lambda sat: "%s" % sat.upper(),
@@ -1383,7 +1418,7 @@ def analyze_opensand_ttfb_bs(df: pd.DataFrame, out_dir: str):
                 x_label="Satellite type, protocol",
                 y_label="Time (ms)",
                 format_file_title=lambda attenuation, ccs:
-                "Time to First Byte - %ddB - cc=%s" % (attenuation, ccs),
+                "Time to First Byte - cc=%s" % ccs,
                 format_file_base=lambda attenuation, ccs:
                 "ttfb_bs_a%d_%s" % (attenuation, ccs),
                 format_section_title=lambda sat: "%s" % sat.upper(),
@@ -1394,6 +1429,29 @@ def analyze_opensand_ttfb_bs(df: pd.DataFrame, out_dir: str):
                 sort_skew=lambda skew_tuples: sorted(skew_tuples, key=lambda s_tup: tuple(
                     tuple(apply_si(bv) for bv in bs.split(','))
                     for bs in s_tup)),
+                percentile_low=5,
+                percentile_high=95)
+
+
+def analyze_opensand_ttfb_prime(df: pd.DataFrame, out_dir: str):
+    plot_timing(df, out_dir,
+                analysis_name='OPENSAND_TTFB_PRIME',
+                file_cols=['attenuation'],
+                section_cols=['sat'],
+                tick_cols=['protocol', 'pep'],
+                skew_cols=['prime'],
+                y_col='ttfb',
+                x_label="Satellite type, protocol",
+                y_label="Time (ms)",
+                format_file_title=lambda attenuation: "Time to First Byte",
+                format_file_base=lambda attenuation:
+                "ttfb_prime_a%d" % attenuation,
+                format_section_title=lambda sat: "%s" % sat.upper(),
+                format_tick_title=lambda protocol, pep: "%s%s" % (protocol.upper(), " (PEP)" if pep else ""),
+                format_skew_title=lambda prime: "%gs" % prime,
+                sort_section=lambda section_tuples: sorted(section_tuples, key=sat_tuple_key),
+                sort_tick=lambda tick_tuples: sorted(tick_tuples),
+                sort_skew=lambda skew_tuples: sorted(skew_tuples),
                 percentile_low=5,
                 percentile_high=95)
 
@@ -1409,7 +1467,7 @@ def analyze_opensand_conn_est(df: pd.DataFrame, out_dir: str):
                 x_label="Satellite type, congestion control",
                 y_label="Time (ms)",
                 format_file_title=lambda protocol, pep, attenuation:
-                "Connection Establishment - %s%s - %ddB" % (protocol.upper(), " (PEP)" if pep else "", attenuation),
+                "Connection Establishment - %s%s" % (protocol.upper(), " (PEP)" if pep else ""),
                 format_file_base=lambda protocol, pep, attenuation:
                 "conn_est_%s%s_a%d" % (protocol, "_pep" if pep else "", attenuation),
                 format_section_title=lambda sat: "%s" % sat.upper(),
@@ -1434,7 +1492,7 @@ def analyze_opensand_conn_est_cc(df: pd.DataFrame, out_dir: str):
                 x_label="Satellite type, protocol",
                 y_label="Time (ms)",
                 format_file_title=lambda attenuation, tbs, qbs, ubs:
-                "Connection Establishment - %ddB - %s" % (attenuation, sprint_buffer_sizes(tbs, qbs, ubs)),
+                "Connection Establishment - %s" % sprint_buffer_sizes(tbs, qbs, ubs),
                 format_file_base=lambda attenuation, tbs, qbs, ubs:
                 "conn_est_cc_a%d_t%s_q%s_u%s" % (attenuation, tbs, qbs, ubs),
                 format_section_title=lambda sat: "%s" % sat.upper(),
@@ -1458,7 +1516,7 @@ def analyze_opensand_conn_est_bs(df: pd.DataFrame, out_dir: str):
                 x_label="Satellite type, protocol",
                 y_label="Time (ms)",
                 format_file_title=lambda attenuation, ccs:
-                "Connection Establishment - %ddB - cc=%s" % (attenuation, ccs),
+                "Connection Establishment - cc=%s" % ccs,
                 format_file_base=lambda attenuation, ccs:
                 "conn_est_bs_a%d_%s" % (attenuation, ccs),
                 format_section_title=lambda sat: "%s" % sat.upper(),
@@ -1469,6 +1527,29 @@ def analyze_opensand_conn_est_bs(df: pd.DataFrame, out_dir: str):
                 sort_skew=lambda skew_tuples: sorted(skew_tuples, key=lambda s_tup: tuple(
                     tuple(apply_si(bv) for bv in bs.split(','))
                     for bs in s_tup)),
+                percentile_low=5,
+                percentile_high=95)
+
+
+def analyze_opensand_conn_est_prime(df: pd.DataFrame, out_dir: str):
+    plot_timing(df, out_dir,
+                analysis_name='OPENSAND_CONN_EST_PRIME',
+                file_cols=['attenuation'],
+                section_cols=['sat'],
+                tick_cols=['protocol', 'pep'],
+                skew_cols=['prime'],
+                y_col='con_est',
+                x_label="Satellite type, protocol",
+                y_label="Time (ms)",
+                format_file_title=lambda attenuation: "Connection Establishment",
+                format_file_base=lambda attenuation:
+                "conn_est_prime_a%d" % attenuation,
+                format_section_title=lambda sat: "%s" % sat.upper(),
+                format_tick_title=lambda protocol, pep: "%s%s" % (protocol.upper(), " (PEP)" if pep else ""),
+                format_skew_title=lambda prime: "%gs" % prime,
+                sort_section=lambda section_tuples: sorted(section_tuples, key=sat_tuple_key),
+                sort_tick=lambda tick_tuples: sorted(tick_tuples),
+                sort_skew=lambda skew_tuples: sorted(skew_tuples),
                 percentile_low=5,
                 percentile_high=95)
 
@@ -1611,6 +1692,8 @@ def __analyze_all_rtt(parsed_results: dict, measure_type: MeasureType, out_dir: 
         analyze_netem_rtt(df_rtt, out_dir)
     elif measure_type == MeasureType.OPENSAND:
         analyze_opensand_rtt(df_rtt, out_dir)
+        analyze_opensand_rtt_prime(df_rtt, out_dir)
+        analyze_opensand_rtt_sat(df_rtt, out_dir)
 
 
 def __analyze_all_timing(parsed_results: dict, measure_type: MeasureType, out_dir: str) -> None:
@@ -1627,9 +1710,11 @@ def __analyze_all_timing(parsed_results: dict, measure_type: MeasureType, out_di
         analyze_opensand_ttfb(df_con_times, out_dir)
         analyze_opensand_ttfb_cc(df_con_times, out_dir)
         analyze_opensand_ttfb_bs(df_con_times, out_dir)
+        analyze_opensand_ttfb_prime(df_con_times, out_dir)
         analyze_opensand_conn_est(df_con_times, out_dir)
         analyze_opensand_conn_est_cc(df_con_times, out_dir)
         analyze_opensand_conn_est_bs(df_con_times, out_dir)
+        analyze_opensand_conn_est_prime(df_con_times, out_dir)
 
 
 def __analyze_all_stats(parsed_results: dict, measure_type: MeasureType, out_dir: str) -> None:
