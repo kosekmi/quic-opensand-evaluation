@@ -531,6 +531,9 @@ def __parse_tcp_client_from_scenario(in_dir: str, scenario_name: str, pep: bool 
             continue
 
         for interval in results['intervals']:
+            if len(interval['streams']) == 0:
+                logger.warning("%s: SKIPPING interval in '%s' due to small interval time", scenario_name, file_path)
+                continue
             if float(interval['streams'][0]['seconds']) < 0.001:
                 logger.warning("%s: Skipping interval in '%s' due to small interval time", scenario_name, file_path)
                 continue
@@ -616,6 +619,9 @@ def __parse_tcp_server_from_scenario(in_dir: str, scenario_name: str, pep: bool 
             continue
 
         for interval in results['intervals']:
+            if len(interval['streams']) == 0:
+                logger.warning("%s: SKIPPING interval in '%s' due to small interval time", scenario_name, file_path)
+                continue
             if float(interval['streams'][0]['seconds']) < 0.001:
                 logger.warning("%s: Skipping interval in '%s' due to small interval time", scenario_name, file_path)
                 continue
@@ -1087,7 +1093,7 @@ def parse_results(in_dir: str, out_dir: str, multi_process: bool = False
     auto_detect = parse_auto_detect(in_dir, out_dir)
 
     # prepare columns
-    config_columns = ['protocol', 'pep', 'sat', 'prime']
+    config_columns = ['protocol', 'pep', 'sat', 'prime', 'loss', 'iw']
     if measure_type == common.MeasureType.NETEM:
         config_columns.extend(['rate', 'loss', 'queue'])
     elif measure_type == common.MeasureType.OPENSAND:
