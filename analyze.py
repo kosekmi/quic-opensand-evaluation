@@ -904,7 +904,7 @@ def analyze_netem_packet_loss(df: pd.DataFrame, out_dir: str):
                          format_file_title=lambda sat, rate, queue, loss:
                          "Packet Loss - %s - %.0f Mbit/s - BDP*%d - Loss %d" % (sat, rate, queue, loss * 100),
                          format_file_base=lambda sat, rate, queue, loss:
-                         "packet_loss_%gs_%s_r%s_q%d_l%f" % (x_bucket, sat, rate, queue, loss))
+                         "packet_loss_%gs_%s_r%s_q%d_l%e" % (x_bucket, sat, rate, queue, loss))
 
 
 def analyze_netem_packet_loss_matrix(df: pd.DataFrame, out_dir: str):
@@ -1024,10 +1024,10 @@ def analyze_opensand_goodput(df: pd.DataFrame, out_dir: str, extra_title_col: Op
                          format_data_title=lambda protocol, pep:
                          "%s%s" % (protocol.upper(), " (PEP)" if pep else ""),
                          format_file_title=lambda sat, attenuation, ccs, tbs, qbs, ubs, loss, iw:
-                         "Goodput Evolution - %s - cc=%s - %s - loss=%d - iw = %s" %
+                         "Goodput Evolution - %s - cc=%s - %s - loss=%e - iw = %s" %
                          (sat, ccs, sprint_buffer_sizes(tbs, qbs, ubs), loss*100, iw),
                          format_file_base=lambda sat, attenuation, ccs, tbs, qbs, ubs, loss, iw:
-                         "goodput_%gs_%s_a%d_%s_t%s_q%s_u%s_l%f_w%s" % (x_bucket, sat, attenuation, ccs, tbs, qbs, ubs, loss, iw),
+                         "goodput_%gs_%s_a%d_%s_t%s_q%s_u%s_l%e_w%s" % (x_bucket, sat, attenuation, ccs, tbs, qbs, ubs, loss*100, iw),
                          extra_title_col=extra_title_col)
 
 
@@ -1199,11 +1199,11 @@ def analyze_opensand_cwnd_evo(df: pd.DataFrame, out_dir: str):
                          format_data_title=lambda protocol, pep:
                          "%s%s" % (protocol.upper(), " (PEP)" if pep else ""),
                          format_file_title=lambda sat, attenuation, ccs, tbs, qbs, ubs, loss, iw:
-                         "Congestion Window Evolution - %s - cc=%s - %s - loss=%d - iw=%s"
+                         "Congestion Window Evolution - %s - cc=%s - %s - loss=%e - iw=%s"
                          % (sat, ccs, sprint_buffer_sizes(tbs, qbs, ubs), loss * 100, iw),
                          format_file_base=lambda sat, attenuation, ccs, tbs, qbs, ubs, loss, iw:
-                         "cwnd_evo_%gs_%s_a%d_%s_t%s_q%s_u%s_l%f_w%s" %
-                         (x_bucket, sat, attenuation, ccs, tbs, qbs, ubs, loss, iw))
+                         "cwnd_evo_%gs_%s_a%d_%s_t%s_q%s_u%s_l%e_w%s" %
+                         (x_bucket, sat, attenuation, ccs, tbs, qbs, ubs, loss*100, iw))
 
 
 def analyze_opensand_cwnd_evo_matrix(df: pd.DataFrame, out_dir: str):
@@ -1373,11 +1373,11 @@ def analyze_opensand_packet_loss(df: pd.DataFrame, out_dir: str):
                          format_data_title=lambda protocol, pep:
                          "%s%s" % (protocol.upper(), " (PEP)" if pep else ""),
                          format_file_title=lambda sat, attenuation, ccs, tbs, qbs, ubs, loss, iw:
-                         "Packet Loss - %s - cc=%s - %s - loss=%d - iw=%s" %
+                         "Packet Loss - %s - cc=%s - %s - loss=%e - iw=%s" %
                          (sat, ccs, sprint_buffer_sizes(tbs, qbs, ubs), loss * 100, iw),
                          format_file_base=lambda sat, attenuation, ccs, tbs, qbs, ubs, loss, iw:
-                         "packet_loss_%gs_%s_a%d_%s_t%s_q%s_u%s_l%f_w%s" %
-                         (x_bucket, sat, attenuation, ccs, tbs, qbs, ubs, loss, iw))
+                         "packet_loss_%gs_%s_a%d_%s_t%s_q%s_u%s_l%e_w%s" %
+                         (x_bucket, sat, attenuation, ccs, tbs, qbs, ubs, loss*100, iw))
 
 
 def analyze_opensand_packet_loss_matrix(df: pd.DataFrame, out_dir: str):

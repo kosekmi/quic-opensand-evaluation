@@ -877,6 +877,7 @@ def __parse_log(in_dir: str, measure_type: common.MeasureType) -> Optional[Tuple
 
     with open(path) as file:
         for line in file:
+            line = '00'.join(line.rsplit(':00', 1))
             if start_time is None:
                 start_time = datetime.strptime(' '.join(line.split(' ', 2)[:2]), "%Y-%m-%d %H:%M:%S%z")
 
