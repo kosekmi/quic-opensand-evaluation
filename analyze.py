@@ -5,6 +5,8 @@ from typing import Optional, Dict, Tuple, Iterable, List, Callable, Generator
 import numpy as np
 import pandas as pd
 from pygnuplot import gnuplot
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 from common import MeasureType, GRAPH_DIR, DATA_DIR, logger
 
@@ -782,6 +784,40 @@ def plot_timing(df: pd.DataFrame, out_dir: str, analysis_name: str, file_cols: L
         with open(os.path.join(out_dir, DATA_DIR, file_base + '.gnuplot'), 'w+') as f:
             f.write("\n".join(plot_cmds))
 
+def plot_boxplot(df: pd.DataFrame, analysis_name: str, file_cols: List[str], value_cols: List[str], x_label: str, y_label: str, format_file_title: Callable[[FileTuple], str],
+                format_file_base: Callable[[FileTuple], str], id_var: str, out_dir: str):
+
+    """
+    Plot a box plot graph
+
+    :param df: The dataframe to read the data from
+    :param analysis_name: A name for the analysis used in log statements
+    :param file_cols: Column names that define values for which separate graphs are generated
+    :param value_cols: Column names that define values by which the data is separated into sections
+    :param x_label: Label for the x-axis
+    :param y_label: Label for the y-axis
+    :param format_file_title: Function to format the title of a graph, receives a file_tuple (file_cols values)
+    :param format_file_base: Function to format the base name of a graph file, receives a file_tuple (file_cols values)
+    :param id_var: Column name that define value by which the data is separated into sections
+    :param out_dir: Directory where all the output files are placed
+    """
+    plt.rcParams["figure.figsize"] = (20,15)
+    plt.rcParams["font.size"] = 15
+    ids = df[id_var].unique()
+
+    for file_tuple in unique_cartesian_product(df, *file_cols):
+        print_file_tuple = sprint_tuple(file_cols, file_tuple)
+        logger.info("Generating %s timing %s", analysis_name, print_file_tuple)
+
+        gdf = filter_graph_data(df, "", None, file_cols, file_tuple)
+        df_melted = pd.melt(gdf, id_vars=id_var, value_vars=value_cols)
+
+        ax = sns.boxplot(x='value', y='variable', hue=id_var, hue_order=ids, data=df_melted, orient='h')
+        ax.set_ylabel(y_label)
+        ax.set_xlabel(x_label)
+        ax.set_title(format_file_title(*file_tuple))
+        plt.savefig(os.path.join(out_dir, GRAPH_DIR, f'{format_file_base(*file_tuple)}.pdf'), format='pdf')
+        plt.clf()
 
 def analyze_netem_goodput(df: pd.DataFrame, out_dir: str, extra_title_col: Optional[str] = None):
     for x_bucket in {GRAPH_X_BUCKET, 1}:
@@ -1846,6 +1882,48 @@ def __analyze_all_timing(parsed_results: dict, measure_type: MeasureType, out_di
         analyze_opensand_conn_est_bs(df_con_times, out_dir)
         analyze_opensand_conn_est_prime(df_con_times, out_dir)
 
+def __analyze_all_http(parsed_results: dict, measure_type: MeasureType, out_dir: str) -> None:
+    logger.info("Analyzing http connection metrics")
+    if parsed_results['http'] is not None:
+        plot_boxplot(parsed_results['http'],
+            'Connection Times',
+            ['pep', 'iw', 'loss'],
+            ['responseStart', 'domInteractive', 'loadEventEnd'],
+            'ms',
+            'event',
+            lambda pep, iw, loss:
+                "HTTP Metrics (Loading Events) - %s - loss=%s iw=%s" % (" (PEP)" if pep else "", loss, iw),
+            lambda pep, iw, loss:
+                "http_loading_metrics_%s_l%s_w%s" % ("pep" if pep else "", loss, iw),
+            'protocol',
+            out_dir)
+
+        plot_boxplot(parsed_results['http'],
+            'Connection Times',
+            ['pep', 'iw', 'loss'],
+            ['domInteractiveNorm', 'loadEventEndNorm'],
+            'ms',
+            'event',
+            lambda pep, iw, loss:
+                "HTTP Metrics (Loading Events Normalized) - %s - loss=%s iw=%s" % (" (PEP)" if pep else "", loss, iw),
+            lambda pep, iw, loss:
+                "http_loading_metrics_normalized_%s_l%s_w%s" % ("pep" if pep else "", loss, iw),
+            'protocol',
+            out_dir)
+
+        plot_boxplot(parsed_results['http'],
+            'HTTP Measurements',
+            ['pep', 'iw', 'loss'],
+            ['firstPaint', 'firstContentfulPaint'],
+            'ms',
+            'event',
+            lambda pep, iw, loss:
+                "HTTP Metrics (Paint Events) - %s - loss=%s iw=%s" % (" (PEP)" if pep else "", loss, iw),
+            lambda pep, iw, loss:
+                "http_paint_metrics_%s_l%s_w%s" % ("pep" if pep else "", loss, iw),
+            'protocol',
+            out_dir)
+
 
 def __analyze_all_stats(parsed_results: dict, measure_type: MeasureType, out_dir: str) -> None:
     logger.info("Analyzing stats")
@@ -1877,6 +1955,8 @@ def analyze_all(parsed_results: dict, measure_type: MeasureType, out_dir: str, m
                        args=(parsed_results, measure_type, out_dir)),
             mp.Process(target=__analyze_all_timing, name='timing',
                        args=(parsed_results, measure_type, out_dir)),
+            mp.Process(target=plot_boxplot, name='http',
+                       args=(__analyze_all_http, measure_type, out_dir)),
         ]
 
         for p in processes:
@@ -1893,3 +1973,4 @@ def analyze_all(parsed_results: dict, measure_type: MeasureType, out_dir: str, m
         __analyze_all_rtt(parsed_results, measure_type, out_dir)
         __analyze_all_timing(parsed_results, measure_type, out_dir)
         __analyze_all_stats(parsed_results, measure_type, out_dir)
+        __analyze_all_http(parsed_results, measure_type, out_dir)

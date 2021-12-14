@@ -730,6 +730,59 @@ def __parse_tcp_timing_from_scenario(in_dir: str, scenario_name: str, pep: bool 
 
     return df
 
+def parse_http(in_dir: str, out_dir: str, scenarios: Dict[str, Dict], config_cols: List[str],
+                     multi_process: bool = False) -> pd.DataFrame:
+    """
+    Parse all http (selenium) timing results.
+    :param in_dir: The directory containing the measurement results.
+    :param out_dir: The directory to save the parsed results to.
+    :param scenarios: The scenarios to parse within the in_dir.
+    :param config_cols: The column names for columns taken from the scenario configuration.
+    :param multi_process: Whether to allow multiprocessing.
+    :return: A dataframe containing the combined results from all scenarios.
+    """
+
+    logger.info("Parsing http results")
+
+    df_cols = [*config_cols, 'run', 'domain', 'connectEnd', 'connectStart', 'responseStart', 'domInteractive', 'loadEventEnd', 'firstPaint', 'firstContentfulPaint', 'domInteractiveNorm', 'loadEventEndNorm']
+    df_http = __parse_slice(__parse_http, in_dir, [*scenarios.items()],
+                                df_cols, 'http', 'timing')
+
+    logger.info("Saving tcp timing data")
+    df_http.to_pickle(os.path.join(out_dir, 'http.pkl'))
+    with open(os.path.join(out_dir, 'http.csv'), 'w+') as out_file:
+        df_http.to_csv(out_file)
+
+    return df_http
+
+def __parse_http(in_dir: str, scenario_name: str, pep: bool = False) -> pd.DataFrame:
+    """
+    Parse the http timing results in the given scenario.
+    :param in_dir: The directory containing all measurement results
+    :param scenario_name: The name of the scenario to parse
+    :param pep: Whether to parse TCP or TCP (PEP) files
+    :return: A dataframe containing the parsed results of the specified scenario.
+    """
+
+    logger.debug("Parsing http%s timing files in %s", " (pep)" if pep else "", scenario_name)
+    file_name='http.csv' if pep == False else 'http_pep.csv'
+    file_path=os.path.join(in_dir, scenario_name, file_name)
+
+    if not os.path.isfile(file_path):
+        logger.warning(f'{file_path} was not found!')
+        return None
+    df = pd.read_csv(file_path, delimiter=";")
+    # Filter metrics with errors out
+    df = df[df['error'].isnull()]
+    df = df[df['nextHopProtocol'].notnull()]
+    # Calculate normalized metrics
+    df['domInteractiveNorm']=df.apply(lambda row: row.domInteractive - row.responseStart, axis=1)
+    df['loadEventEndNorm']=df.apply(lambda row: row.loadEventEnd - row.responseStart, axis=1)
+    # New normalized fields 
+    df = df.reset_index()
+
+    return df
+
 
 def parse_ping(in_dir: str, out_dir: str, scenarios: Dict[str, Dict], config_cols: List[str],
                multi_process: bool = False) -> Tuple[pd.DataFrame, pd.DataFrame]:
@@ -1002,6 +1055,7 @@ def __parse_results_mp(in_dir: str, out_dir: str, scenarios: Dict[str, Dict], co
         ('tcp_server', parse_tcp_server, mp.Pipe()),
         ('tcp_timing', parse_tcp_timing, mp.Pipe()),
         ('ping', parse_ping, mp.Pipe()),
+        ('http', parse_http, mp.Pipe())
     ]
 
     processes = [
@@ -1049,6 +1103,7 @@ def __parse_results_sp(in_dir: str, out_dir: str, scenarios: Dict[str, Dict], co
     df_tcp_client = parse_tcp_client(in_dir, out_dir, scenarios, config_columns)
     df_tcp_server = parse_tcp_server(in_dir, out_dir, scenarios, config_columns)
     df_tcp_timing = parse_tcp_timing(in_dir, out_dir, scenarios, config_columns)
+    df_http = parse_http(in_dir, out_dir, scenarios, config_columns)
     df_ping_raw, df_ping_summary = parse_ping(in_dir, out_dir, scenarios, config_columns)
 
     df_config = __create_config_df(out_dir, scenarios)
@@ -1066,6 +1121,7 @@ def __parse_results_sp(in_dir: str, out_dir: str, scenarios: Dict[str, Dict], co
         'ping_summary': df_ping_summary,
         'stats': df_stats,
         'runs': df_runs,
+        'http': df_http,
     }
 
 
