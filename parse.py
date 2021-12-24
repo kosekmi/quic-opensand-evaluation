@@ -773,8 +773,11 @@ def __parse_http(in_dir: str, scenario_name: str, pep: bool = False) -> pd.DataF
         return None
     df = pd.read_csv(file_path, delimiter=";")
     # Filter metrics with errors out
+    original_df_count = df['protocol'].count()
     df = df[df['error'].isnull()]
     df = df[df['nextHopProtocol'].notnull()]
+    filtered_df_count = df['protocol'].count()
+    logger.debug(f'{filtered_df_count}/{original_df_count} are valid')
     # Calculate normalized metrics
     df['domInteractiveNorm']=df.apply(lambda row: row.domInteractive - row.responseStart, axis=1)
     df['loadEventEndNorm']=df.apply(lambda row: row.loadEventEnd - row.responseStart, axis=1)

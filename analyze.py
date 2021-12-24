@@ -1897,7 +1897,7 @@ def __analyze_all_http(parsed_results: dict, measure_type: MeasureType, out_dir:
         plot_boxplot(parsed_results['http'],
             'Connection Times',
             ['iw', 'loss'],
-            ['responseStart', 'domInteractive', 'loadEventEnd', 'domInteractiveNorm', 'loadEventEndNorm','firstContentfulPaint'],
+            ['responseStart', 'domInteractive', 'firstContentfulPaint', 'loadEventEnd', 'domInteractiveNorm', 'loadEventEndNorm'],
             'ms',
             'event',
             lambda iw, loss:
@@ -1913,7 +1913,7 @@ def __analyze_all_http(parsed_results: dict, measure_type: MeasureType, out_dir:
         plot_boxplot(parsed_results['http'],
             'Connection Times',
             ['iw', 'loss'],
-            ['responseStart', 'domInteractive', 'loadEventEnd', 'domInteractiveNorm', 'loadEventEndNorm','firstContentfulPaint'],
+            ['responseStart', 'domInteractive', 'firstContentfulPaint', 'loadEventEnd', 'domInteractiveNorm', 'loadEventEndNorm'],
             'ms',
             'event',
             lambda iw, loss:
