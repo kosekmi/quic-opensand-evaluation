@@ -748,10 +748,13 @@ def parse_http(in_dir: str, out_dir: str, scenarios: Dict[str, Dict], config_col
     df_http = __parse_slice(__parse_http, in_dir, [*scenarios.items()],
                                 df_cols, 'http', 'timing')
 
-    logger.info("Saving tcp timing data")
-    df_http.to_pickle(os.path.join(out_dir, 'http.pkl'))
-    with open(os.path.join(out_dir, 'http.csv'), 'w+') as out_file:
-        df_http.to_csv(out_file)
+    if len(df_http.index) > 0:
+        logger.info("Saving http timing data")
+        df_http.to_pickle(os.path.join(out_dir, 'http.pkl'))
+        with open(os.path.join(out_dir, 'http.csv'), 'w+') as out_file:
+            df_http.to_csv(out_file)
+    else:
+        return None
 
     return df_http
 
