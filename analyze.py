@@ -1893,17 +1893,17 @@ def __analyze_all_timing(parsed_results: dict, measure_type: MeasureType, out_di
 
 def __analyze_all_http(parsed_results: dict, measure_type: MeasureType, out_dir: str) -> None:
     logger.info("Analyzing http connection metrics")
-    if 'http' in parsed_results:
+    if 'http' in parsed_results and parsed_results['http'] is not None:
         plot_boxplot(parsed_results['http'],
             'Connection Times',
-            ['iw', 'loss'],
+            ['sat', 'iw', 'loss'],
             ['responseStart', 'domInteractive', 'firstContentfulPaint', 'loadEventEnd', 'domInteractiveNorm', 'loadEventEndNorm'],
             'ms',
             'event',
-            lambda iw, loss:
-                "HTTP Metrics - loss=%s iw=%s" % (loss, iw),
-            lambda iw, loss:
-                "http_metrics_l%s_w%s" % (loss, iw),
+            lambda sat, iw, loss:
+                "HTTP Metrics - %s loss=%s iw=%s" % (sat, loss, iw),
+            lambda sat, iw, loss:
+                "http_metrics_%sl%s_w%s" % (sat, loss, iw),
             ['protocol', 'pep'],
             lambda row:
                 "%s%s" % (row['protocol'], " (PEP)" if row['pep'] else ""),
@@ -1912,20 +1912,22 @@ def __analyze_all_http(parsed_results: dict, measure_type: MeasureType, out_dir:
 
         plot_boxplot(parsed_results['http'],
             'Connection Times',
-            ['iw', 'loss'],
+            ['sat', 'iw', 'loss'],
             ['responseStart', 'domInteractive', 'firstContentfulPaint', 'loadEventEnd', 'domInteractiveNorm', 'loadEventEndNorm'],
             'ms',
             'event',
-            lambda iw, loss:
-                "HTTP Metrics  - loss=%s iw=%s (logarithmic)" % (loss, iw),
-            lambda iw, loss:
-                "http_metrics_l%s_w%s_log" % (loss, iw),
+            lambda sat, iw, loss:
+                "HTTP Metrics  - %s loss=%s iw=%s (logarithmic)" % (sat, loss, iw),
+            lambda sat, iw, loss:
+                "http_metrics_%sl%s_w%s_log" % (sat, loss, iw),
             ['protocol', 'pep'],
             lambda row:
                 "%s%s" % (row['protocol'], " (PEP)" if row['pep'] else ""),
             'Protocol',
             out_dir,
             True)
+    else:
+        logger.warning('No valid http data')
 
 def __analyze_all_stats(parsed_results: dict, measure_type: MeasureType, out_dir: str) -> None:
     logger.info("Analyzing stats")
