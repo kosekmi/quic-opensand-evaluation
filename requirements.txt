@@ -3,3 +3,5 @@ pandas~=1.1.4
 py-gnuplot~=1.1.7
 regex~=2020.11.13
 simplejson~=3.17.0
+matplotlib~=3.5.0
+seaborn~=0.11.2
