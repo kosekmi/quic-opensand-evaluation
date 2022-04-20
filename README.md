@@ -12,10 +12,17 @@ To run a measurement you can use these scripts: [quic-opensand-emulation](https:
 
 ## Usage
 
-Execute the `evaluate.py` script and specify input and output folder (can also be the same)
+Execute the `evaluate.py` script and specify input and output folder, which can also be the same:
 ```bash
-parse.py -i <input_dir> -o <output_dir>
+python evaluate.py -i <input_dir> -o <output_dir>
 ```
+
+The folder `sample` contains exemplary compressed raw data (`raw_data.zip`), which can be evaluated once it is uncompressed:
+```bash
+python evaluate.py -i sample/raw_data -o sample/parsed
+```
+The generated plots of the sample data are provided in `sample/graphs`.
+
 
 ### Arguments
 
@@ -34,7 +41,7 @@ To generate graphs from multiple independent measurements, use the `combined_ana
 the `evaluate.py` script in parse only mode to parse the measurements individually, as the combined analysis relies on
 the raw parsed data.
 ```bash
-combined_analyze.py -o <output_dir> <title1> <path1> <title2> <path2> [... <titleN> <pathN>]
+python combined_analyze.py -o <output_dir> <title1> <path1> <title2> <path2> [... <titleN> <pathN>]
 ```
 
 ### Arguments
